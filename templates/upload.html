@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Загрузка данных: обновить расчёты</h1>
+<section class="card">
+  <p>Можно загрузить один CSV или оба файла features.data и labels.data.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>CSV <input type="file" name="csv_file" accept=".csv"></label>
+    <label>Файл датчиков <input type="file" name="features_file" accept=".data"></label>
+    <label>Файл меток <input type="file" name="labels_file" accept=".data"></label>
+    {% if password_required %}<label>Пароль загрузки <input type="password" name="password" required></label>{% endif %}
+    <button type="submit">Загрузить и пересчитать</button>
+  </form>
+  <p class="caption">Допустимый общий размер загрузки — 100 МБ. После успешной проверки данные сохраняются в data/.</p>
+</section>
+<details class="card"><summary>Как это посчитано</summary>
+  <p>CSV должен содержать datetime, label и столбцы датчиков. Либо загрузите два синхронных файла в одинаковом порядке строк. После проверки данных показатели пересчитываются.</p>
+</details>
+{% endblock %}

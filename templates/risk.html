@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Оценка риска: качество проверено только по времени</h1>
+{% if risk is defined and not risk.available %}
+<section class="status warning">{{ risk.reason }}</section>
+{% elif risk is defined %}
+{% if index_error %}<section class="status warning">⚠ Номер изделия вне диапазона; показан последний доступный образец.</section>{% endif %}
+<section class="card">
+  <h2>ROC-AUC на последних 20%</h2>
+  <p>ROC-AUC {{ "%.3f"|format(risk.auc) }}, интервал 95% {{ "%.3f"|format(risk.interval[0]) }}–{{ "%.3f"|format(risk.interval[1]) }}, N={{ data.bad|length - data.split }}.</p>
+  <p class="status warning">⚠ Качество слабое; уровень риска — только ориентир для проверки.</p>
+  <div class="chart">{{ roc|safe }}</div>
+  <p class="caption">По горизонтали — доля ложных срабатываний среди годных, по вертикали — доля найденного брака. Каждая точка соответствует порогу модели; диагональ — случайный ориентир. График нужен для оценки компромисса между пропущенным браком и ложными тревогами.</p>
+  <p class="caption">Скользящая проверка по времени: ROC-AUC {{ "%.3f"|format(risk.rolling_auc) }}, N={{ risk.rolling_count }}. Изделия не перемешивались.</p>
+</section>
+<section class="card"><h2>Доля брака по уровням риска</h2>{{ summary|safe }}</section>
+<section class="card"><h2>Уровень риска выбранного изделия: {{ level|lower }}</h2>
+  <p>Уровень сравнивается с последними 300 оценками и не является вероятностью.</p>
+  <form method="post"><label>Номер изделия <input type="number" name="index" min="0" max="{{ data.bad|length - 1 }}" value="{{ index }}"></label><button type="submit">Показать оценку</button></form>
+  <div class="chart">{{ contributions|safe }}</div>
+  <p class="caption">По вертикали — датчики, по горизонтали — вклад их значений в оценку модели для выбранного изделия. Знак показывает направление вклада, размер — силу вклада в балл; это объяснение работы модели, не причина брака.</p>
+</section>
+{% if silent %}<section class="status error">⛔ Датчики модели почти не передают данные: {{ silent|join(", ") }}. Оценка требует проверки.</section>{% else %}<section class="status success">✓ Все датчики модели передают данные в последних изделиях.</section>{% endif %}
+<details class="card"><summary>Как это посчитано</summary>
+  <p>Логистическая регрессия использует первые 80% для обучения. Границы обрезки и медианы считаются только по обучающим строкам. ROC-AUC и интервал показываются вместе с количеством проверочных изделий. Категории сопоставляются с оценками последних 300 изделий.</p>
+  {{ summary|safe }}
+</details>
+{% else %}<section class="status warning">Данные не загружены.</section>{% endif %}
+{% endblock %}

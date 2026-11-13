@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Обрати внимание</h1>
+{% if data is defined %}
+{% if index_error %}<section class="status warning">⚠ Номер изделия некорректен; показан последний бракованный образец.</section>{% endif %}
+{% if latest_index_error %}<section class="status warning">Номер строки вне диапазона; показано последнее изделие.</section>{% endif %}
+{% if latest_index == data.bad|length - 1 %}
+<p class="finding">Проверяем последнее изделие в выбранном диапазоне и отмечаем датчики, чьи значения близки к историческим границам.</p>
+{% else %}
+<p class="finding">Проверяем выбранное изделие из истории и отмечаем датчики, чьи значения близки к историческим границам.</p>
+{% endif %}
+<section class="card">
+  <h2>Строка {{ latest_index }} · {{ last_time.strftime("%d.%m.%Y %H:%M") }}</h2>
+  <p>Метка изделия в файле: <b>{{ latest_label }}</b>{% if latest_index == data.bad|length - 1 %}. Это последняя запись выбранного диапазона.{% else %}. Выбрана историческая строка из диапазона.{% endif %} Данные не поступают онлайн.</p>
+  <form method="post">
+    <input type="hidden" name="mode" value="latest">
+    <label>Номер строки изделия (нумерация с 0)
+      <input type="number" name="latest_index" min="0" max="{{ total_rows - 1 }}" value="{{ latest_index }}" required>
+    </label>
+    <button type="submit">Показать строку</button>
+  </form>
+  {% if red_count %}<section class="status error"><b>Красная зона:</b> {{ red_count }} датчик(а/ов) достигли красной границы.</section>{% endif %}
+  {% if yellow_count %}
+    <section class="status warning"><b>Жёлтая зона:</b> {{ yellow_count }} датчик(а/ов) близки к исторической границе.</section>
+  {% endif %}
+  {% if not red_count and not yellow_count %}
+    <section class="status success"><b>Жёлтых и красных показаний нет.</b> {% if missing_count %}У {{ missing_count }} датчик(а/ов) нет измерения.{% else %}Все ключевые датчики ниже жёлтой границы.{% endif %}</section>
+  {% endif %}
+  <h3>Зоны ключевых датчиков</h3>
+  <p class="caption">Зелёная — меньше 2σ; жёлтая — от 2σ до 3σ; красная — 3σ и выше. «Нет данных» означает, что измерение отсутствует.</p>
+  {% if latest_chart %}<div class="chart">{{ latest_chart|safe }}</div>{% endif %}
+  {% if latest_chart %}<p class="caption">По вертикали — датчики, по горизонтали — отклонение последнего изделия в σ. Цвет точки соответствует зоне. Нужен, чтобы быстро увидеть, какие показания проверить первыми.</p>{% endif %}
+  {{ latest|safe }}
+  <p class="caption">Жёлтая и красная зоны показывают близость к односторонним границам, рассчитанным по истории. Это повод проверить показания, а не прогноз и не установленная причина брака.</p>
+</section>
+{% if growth_signal %}
+<section class="status error"><b>Сигнал окна из 20 изделий:</b> доля брака {{ "%.1f"|format(recent_rate*100) }}% выше контрольной границы {{ "%.1f"|format(control_limit*100) }}%. Это отдельный сигнал по меткам последних изделий.</section>
+{% else %}
+<section class="status success"><b>Сигнал окна из 20 изделий не сработал:</b> доля брака {{ "%.1f"|format(recent_rate*100) }}% не выше контрольной границы {{ "%.1f"|format(control_limit*100) }}%.</section>
+{% endif %}
+<section class="card"><h2>Карточка бракованного изделия</h2>
+  <form method="post">
+    <input type="hidden" name="latest_index" value="{{ latest_index }}">
+    <label>Бракованное изделие
+      <select name="index">
+      {% for item in defect_indices %}<option value="{{ item.index }}" {% if item.index == index %}selected{% endif %}>Строка {{ item.index }} · {{ item.date }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Показать изделие</button>
+  </form>
+  <div class="chart">{{ defect_chart|safe }}</div>
+  <p class="caption">Столбцы показывают значения ключевых датчиков у выбранного бракованного изделия. Разные датчики имеют разные единицы и масштабы, поэтому сравнивайте каждый только с его собственной границей в таблице.</p>
+  {{ defects|safe }}
+</section>
+<section class="card"><h2>Проверить показания вручную</h2>
+  <form method="post">
+    <input type="hidden" name="mode" value="manual">
+    <input type="hidden" name="latest_index" value="{{ latest_index }}">
+    <div class="form-grid">
+    {% for name in data["keys"] %}<label>{{ name }} <input name="value_{{ name }}" type="number" step="any"></label>{% endfor %}
+    </div><button type="submit">Проверить</button>
+  </form>
+  {% if manual %}<h3>Исторический контекст введённых значений</h3>{{ manual|safe }}{% endif %}
+</section>
+<details class="card"><summary>Как это посчитано</summary>
+  <p>Для последнего изделия каждый доступный датчик сравнивается с односторонней границей. Отклонение меньше 2σ показано как зелёная зона, от 2σ до 3σ — жёлтая, от 3σ — красная. Историческая доля брака считается среди всех изделий за жёлтой границей.</p>
+  <p>Отдельно проверяется доля брака в окне из последних 20 изделий. Она использует метки брака, поэтому это сигнал уже начавшегося роста, а не прогноз по датчикам.</p>
+</details>
+{% else %}<section class="status warning">Данные не загружены.</section>{% endif %}
+{% endblock %}

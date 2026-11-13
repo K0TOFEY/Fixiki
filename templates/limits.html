@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Границы 3σ: датчики сравниваются с уровнем годных изделий</h1>
+{% if data is defined %}
+<section class="card">
+  <form method="post">
+    <label>Датчик
+      <select name="sensor">
+      {% for name in data["keys"] %}<option value="{{ name }}" {% if name == sensor %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Показать</button>
+  </form>
+  <div class="chart">{{ chart|safe }}</div>
+  <p class="caption">По горизонтали — значение выбранного датчика, по вертикали — количество изделий. Цвета разделяют годные и бракованные изделия; линии показывают типичный уровень и односторонние границы. График помогает увидеть, насколько распределения групп разделяются относительно границ.</p>
+  {{ border|safe }}
+  <h2>Исторические изделия за каждой границей</h2>{{ history|safe }}
+  <p class="caption">Границы односторонние: в сторону, где в опорном периоде чаще был брак. Это ориентир, не причина.</p>
+</section>
+<details class="card"><summary>Как это посчитано</summary>
+  <p>Центр — медиана годных изделий первых 80% по времени. Сигма считается по MAD, устойчивому к выбросам. Жёлтая и красная границы находятся в 2σ и 3σ от центра.</p>
+  <p>Для изделий за каждой границей показаны число наблюдений, историческая доля брака и 95%-й интервал Уилсона.</p>{{ history|safe }}
+</details>
+{% else %}<section class="status warning">Данные не загружены.</section>{% endif %}
+{% endblock %}

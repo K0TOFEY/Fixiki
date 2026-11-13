@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Данные: в наборе {{ data.sensors.shape[0] if data is defined else "—" }} изделий</h1>
+{% if data is defined %}
+<p class="finding">Метка 1 = брак, −1 = годное</p>
+<section class="cards">
+  <article class="card"><span>Изделий</span><strong>{{ data.sensors.shape[0] }}</strong></article>
+  <article class="card"><span>Датчиков</span><strong>{{ data.sensors.shape[1] }}</strong></article>
+  <article class="card"><span>Брак</span><strong>{{ data.bad.sum() }} ({{ "%.2f"|format(data.bad.mean()*100) }}%)</strong></article>
+  <article class="card"><span>Осталось датчиков</span><strong>{{ data.clean.shape[1] }}</strong></article>
+  <article class="card"><span>Период данных</span><strong>{{ data.labels.datetime.min().strftime("%d.%m.%Y") }} — {{ data.labels.datetime.max().strftime("%d.%m.%Y") }}</strong></article>
+  <article class="card"><span>Пустые ячейки</span><strong>{{ "%.2f"|format(data.sensors.isna().mean().mean()*100) }}% → {{ "%.2f"|format(data.clean.isna().mean().mean()*100) }}%</strong></article>
+</section>
+<section class="card"><h2>Очистка датчиков</h2>
+  <div class="chart">{{ cleanup[0]|safe }}</div><div class="chart">{{ cleanup[1]|safe }}</div>
+  {{ table|safe }}
+  <p class="caption">Удаляются датчики с пропусками выше 50% и с одним или нулём уникальных значений. Пропуски не трактуются как ноль.</p>
+</section>
+<section class="card"><h2>Целевая переменная и доля брака</h2>
+  <div class="chart">{{ target[0]|safe }}</div><div class="chart">{{ target[1]|safe }}</div>
+  <p class="caption">Брак редкий, поэтому accuracy как метрику не используем: она может быть высокой, даже если брак не замечен.</p>
+</section>
+<details class="card"><summary>Как это посчитано</summary>
+  <p>Метка 1 записывается как брак, а −1 — как годное изделие. Доля пустых значений считается для каждого датчика отдельно. В таблице приведены причины исключения столбцов.</p>
+  {{ table|safe }}
+</details>
+{% else %}<section class="status warning">Загрузите данные, чтобы увидеть статистику.</section>{% endif %}
+{% endblock %}
