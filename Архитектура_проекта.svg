@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title description">
+  <title id="title">Архитектура прототипа контроля качества</title>
+  <desc id="description">Поток данных от загрузки файлов через Flask и аналитические расчёты к визуализации в браузере. Загруженные файлы хранятся локально, рассчитанное состояние — в памяти процесса.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#62747b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#2d6674"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #25343a; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #627078; }
+      .step { font-size: 13px; font-weight: 700; letter-spacing: 1.2px; fill: #2d6674; }
+      .heading { font-size: 22px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; fill: #526168; }
+      .tiny { font-size: 13px; fill: #526168; }
+      .card { fill: #fff; stroke: #ccd6d4; stroke-width: 2; }
+      .soft { fill: #edf3f1; stroke: #cad7d3; stroke-width: 2; }
+      .blue { fill: #e8f1f3; stroke: #b7cdd2; stroke-width: 2; }
+      .sand { fill: #f5f0e5; stroke: #ded2b7; stroke-width: 2; }
+      .line { stroke: #62747b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .line-blue { stroke: #2d6674; stroke-width: 3; fill: none; marker-end: url(#arrow-blue); }
+      .dashed { stroke-dasharray: 9 8; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#f6f7f4"/>
+  <text x="64" y="72" class="title">Архитектура проекта контроля качества</text>
+  <text x="64" y="105" class="subtitle">Текущий прототип: загрузка истории → расчёт показателей → просмотр в браузере</text>
+
+  <!-- Main processing flow -->
+  <rect x="55" y="155" width="280" height="300" rx="14" class="card"/>
+  <text x="80" y="190" class="step">01 · ИСТОЧНИК</text>
+  <text x="80" y="230" class="heading">Данные изделий</text>
+  <text x="80" y="270" class="body">CSV</text>
+  <text x="80" y="297" class="small">datetime · label · датчики</text>
+  <line x1="80" y1="316" x2="310" y2="316" stroke="#e0e6e3" stroke-width="2"/>
+  <text x="80" y="349" class="body">Или два файла</text>
+  <text x="80" y="376" class="small">features.data</text>
+  <text x="80" y="399" class="small">labels.data</text>
+  <text x="80" y="433" class="tiny">Также чтение файлов при старте</text>
+
+  <rect x="385" y="155" width="310" height="300" rx="14" class="blue"/>
+  <text x="410" y="190" class="step">02 · ВЕБ-ПРИЛОЖЕНИЕ</text>
+  <text x="410" y="230" class="heading">Flask</text>
+  <text x="410" y="260" class="small">dashboard.py</text>
+  <text x="410" y="300" class="body">• Принимает загрузку</text>
+  <text x="410" y="331" class="body">• Проверяет формат и метки</text>
+  <text x="410" y="362" class="body">• Управляет страницами</text>
+  <text x="410" y="393" class="body">• Применяет фильтр дат</text>
+  <text x="410" y="430" class="tiny">Сессия браузера хранит выбранный период</text>
+
+  <rect x="745" y="155" width="350" height="300" rx="14" class="soft"/>
+  <text x="770" y="190" class="step">03 · РАСЧЁТЫ</text>
+  <text x="770" y="230" class="heading">Аналитика</text>
+  <text x="770" y="260" class="small">functions.py</text>
+  <text x="770" y="300" class="body">• Сортировка и очистка</text>
+  <text x="770" y="331" class="body">• Границы датчиков и сигналы</text>
+  <text x="770" y="362" class="body">• Недельная статистика</text>
+  <text x="770" y="393" class="body">• Экспериментальная ML-модель</text>
+  <text x="770" y="430" class="tiny">Рассчитывается после загрузки/старта</text>
+
+  <rect x="1145" y="155" width="400" height="300" rx="14" class="sand"/>
+  <text x="1170" y="190" class="step">04 · ХРАНЕНИЕ И СОСТОЯНИЕ</text>
+  <text x="1170" y="230" class="heading">Два уровня</text>
+  <text x="1170" y="270" class="body">Файлы: локальная папка data/</text>
+  <text x="1170" y="298" class="small">input.csv либо features.data + labels.data</text>
+  <line x1="1170" y1="319" x2="1515" y2="319" stroke="#e3dac6" stroke-width="2"/>
+  <text x="1170" y="352" class="body">Расчёты: память процесса</text>
+  <text x="1170" y="380" class="small">STATE + кэш выбранных периодов</text>
+  <text x="1170" y="425" class="tiny">Не база данных; состояние не разделяется</text>
+  <text x="1170" y="443" class="tiny">между независимыми процессами</text>
+
+  <path d="M335 305 H375" class="line"/>
+  <path d="M695 305 H735" class="line"/>
+  <path d="M1095 305 H1135" class="line"/>
+
+  <!-- Presentation -->
+  <path d="M1345 455 V510 H1000" class="line-blue"/>
+  <rect x="385" y="520" width="1160" height="215" rx="14" class="card"/>
+  <text x="415" y="558" class="step">05 · ПРЕДСТАВЛЕНИЕ РЕЗУЛЬТАТОВ</text>
+  <rect x="415" y="580" width="330" height="112" rx="10" class="soft"/>
+  <text x="438" y="615" class="heading">Графики</text>
+  <text x="438" y="645" class="small">charts.py · Plotly</text>
+  <text x="438" y="671" class="tiny">Статистика, сигналы, датчики</text>
+  <rect x="785" y="580" width="330" height="112" rx="10" class="soft"/>
+  <text x="808" y="615" class="heading">Страницы</text>
+  <text x="808" y="645" class="small">templates/ · Jinja · HTML</text>
+  <text x="808" y="671" class="tiny">Таблицы, формы и пояснения</text>
+  <rect x="1155" y="580" width="350" height="112" rx="10" class="blue"/>
+  <text x="1178" y="615" class="heading">Браузер пользователя</text>
+  <text x="1178" y="645" class="small">CSS · Plotly.js · интерактивные графики</text>
+  <text x="1178" y="671" class="tiny">Загрузка файла и просмотр отчёта</text>
+  <path d="M745 635 H775" class="line"/>
+  <path d="M1115 635 H1145" class="line"/>
+  <path d="M565 520 V485 H540 V465" class="line-blue dashed"/>
+  <text x="585" y="502" class="tiny">ответ страницы</text>
+  <path d="M1250 735 V770 H540 V465" class="line-blue dashed"/>
+  <text x="835" y="762" class="tiny">действия пользователя: выбор периода / загрузка</text>
+
+  <!-- Runtime and limitations -->
+  <rect x="55" y="795" width="1490" height="145" rx="14" fill="#e9eeeb" stroke="#cbd5d1" stroke-width="2"/>
+  <text x="82" y="833" class="step">ЗАПУСК И ГРАНИЦЫ ТЕКУЩЕЙ ВЕРСИИ</text>
+  <text x="82" y="871" class="body">Локально: run.command / run.bat → dashboard.py</text>
+  <text x="82" y="902" class="small">Развёртывание: Procfile → Waitress; Dockerfile → Gunicorn</text>
+  <line x1="790" y1="850" x2="790" y2="918" stroke="#cbd5d1" stroke-width="2"/>
+  <text x="825" y="871" class="body">Файловый ввод, не поток с производственной линии</text>
+  <text x="825" y="902" class="small">Нет интеграции ERP/MES, автоматических тревог и журнала действий</text>
+  <text x="82" y="926" class="tiny">Прототип для ретроспективного анализа; ML и статистические сигналы требуют проверки на новых размеченных данных.</text>
+</svg>

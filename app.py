@@ -318,8 +318,8 @@ def show_section_11(data):
 # Что делает: показывает проверку качества; получает модель и метки; ничего не возвращает; ставит качество рядом с оценками.
 def show_risk_quality(risk, bad, split):
     test_bad = bad[split:]
-    lower, upper = risk["auc_interval"]
-    st.write(f"ROC-AUC = {risk['auc']:.3f} (95% интервал {lower:.3f}–{upper:.3f}); проверка N={len(test_bad)}, бракованных изделий={int(test_bad.sum())}.")
+    lower = risk["auc_interval"][0]
+    st.write(f"ROC-AUC = {risk['auc']:.3f}; проверка N={len(test_bad)}, бракованных изделий={int(test_bad.sum())}.")
     if lower <= 0.5 or risk["auc"] < 0.70:
         st.warning("Качество слабое или неустойчивое: используйте оценку риска только как ориентир для проверки.")
     else:
@@ -335,18 +335,6 @@ def show_risk_quality(risk, bad, split):
 
 
 # Что делает: показывает доли брака по уровням; получает интервалы и размеры групп; ничего не возвращает; даёт исторический контекст.
-def show_risk_summary(risk):
-    summary = risk["summary"].copy()
-    shares = []
-    intervals = []
-    for _, row in summary.iterrows():
-        shares.append(f"{row['Доля брака']:.1%}" if pd.notna(row["Доля брака"]) else "нет данных")
-        intervals.append(f"{row['Нижняя 95%']:.1%}–{row['Верхняя 95%']:.1%}" if row["Изделий"] else "нет данных")
-    summary["Доля брака"] = shares
-    summary["95% интервал"] = intervals
-    st.dataframe(summary[["Уровень риска", "Доля брака", "Изделий", "95% интервал"]], width="stretch")
-
-
 # Что делает: показывает уровни на последних изделиях; получает оценки и даты; ничего не возвращает; помогает выбрать запись для разбора.
 def show_recent_risk(risk, labels):
     start = max(0, len(labels) - calc.RISK_REFERENCE_COUNT)
@@ -371,7 +359,6 @@ def show_section_12(data):
         st.warning(risk["reason"])
         return
     show_risk_quality(risk, data["bad"], data["split"])
-    show_risk_summary(risk)
     show_recent_risk(risk, data["labels"])
     recent_missing = data["clean"][risk["sensors"]].tail(RECENT_COUNT).isna().mean()
     silent = recent_missing[recent_missing > SILENT_LIMIT]
@@ -380,7 +367,7 @@ def show_section_12(data):
     else:
         st.success("В последних изделиях нет датчиков модели с пропусками выше 80%.")
     st.caption("Модель обучена на первых 80% по времени. Она обрезает крайние значения, заполняет пропуски медианой и сравнивает риск по недавнему распределению оценок.")
-    show_explanation("ROC-AUC и его интервал показывают качество на последних 20%, а скользящая проверка обучает модель только на более ранних строках. Доля брака и интервал в таблице рассчитаны по отложенным изделиям, а уровни сравниваются с последними 300 оценками. Вклады показывают, какие значения датчиков сдвинули оценку выбранного изделия вверх или вниз.", risk["summary"])
+    show_explanation("ROC-AUC показывает качество на последних 20%, а скользящая проверка обучает модель только на более ранних строках. Уровни сравниваются с последними 300 оценками. Вклады показывают, какие значения датчиков сдвинули оценку выбранного изделия вверх или вниз.", risk["summary"])
 
 
 # Что делает: загружает файлы и открывает экран; получает действия пользователя; ничего не возвращает; связывает меню и расчёты.

@@ -12,6 +12,27 @@
   </form>
   <p class="caption">Допустимый общий размер загрузки — 100 МБ. После успешной проверки данные сохраняются в data/.</p>
 </section>
+{% if data %}
+<section class="card">
+  <h2>Ввести показания датчиков вручную</h2>
+  <p>Введите значения в исходном масштабе датчиков. Ручная проверка сравнит их с историческими границами, но не изменит загруженный набор данных.</p>
+  <form method="post">
+    <input type="hidden" name="mode" value="manual">
+    <div class="form-grid">
+      {% for name in data["keys"] %}
+      <label>{{ name }} <input name="value_{{ name }}" type="number" step="any"></label>
+      {% endfor %}
+    </div>
+    <button type="submit">Проверить показания</button>
+  </form>
+  {% if manual %}<h3>Исторический контекст введённых значений</h3>{{ manual|safe }}
+  {% elif manual_submitted %}<p class="status warning">Введите показание хотя бы одного датчика.</p>{% endif %}
+</section>
+{% else %}
+<section class="card"><h2>Ввести показания датчиков вручную</h2>
+  <p class="caption">Сначала загрузите набор данных: для ручной проверки нужны исторические границы датчиков.</p>
+</section>
+{% endif %}
 <details class="card"><summary>Как это посчитано</summary>
   <p>CSV должен содержать datetime, label и столбцы датчиков. Либо загрузите два синхронных файла в одинаковом порядке строк. После проверки данных показатели пересчитываются.</p>
 </details>

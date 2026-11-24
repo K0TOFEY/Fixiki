@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Тестирование моделей</h1>
+{% if comparison is defined and not comparison.available %}
+<section class="status warning">{{ comparison.reason }}</section>
+{% elif comparison is defined %}
+<p>Сравнение на последних 20% данных · N={{ data.bad|length - data.split }}. Обучение — первые 60%, подбор порога — следующие 20%; порядок изделий по времени сохранён.</p>
+<div class="cards">
+  {% if data.model.available %}
+  <section class="card">
+    <h2>Текущая модель — логистическая регрессия</h2>
+    <p>ROC-AUC <strong>{{ "%.2f"|format(data.model.auc) }}</strong></p>
+    <div class="cards">
+      <article class="card"><span>Accuracy</span><strong>{{ "%.2f"|format(data.model.metrics.accuracy) }}</strong></article>
+      <article class="card"><span>Сбалансированная точность</span><strong>{{ "%.2f"|format(data.model.metrics.balanced_accuracy) }}</strong></article>
+      <article class="card"><span>Полнота брака</span><strong>{{ "%.2f"|format(data.model.metrics.recall) }}</strong></article>
+      <article class="card"><span>Точность найденного брака</span><strong>{{ "%.2f"|format(data.model.metrics.precision) }}</strong></article>
+      <article class="card"><span>F1</span><strong>{{ "%.2f"|format(data.model.metrics.f1) }}</strong></article>
+    </div>
+    <p>На тесте: найдено {{ data.model.metrics.found_defect }} из {{ data.model.metrics.defects }} изделий с браком; пропущено {{ data.model.metrics.missed_defect }}. Ложных тревог: {{ data.model.metrics.false_alarm }}.</p>
+  </section>
+  {% endif %}
+  {% for model in comparison.models %}
+  <section class="card">
+    <h2>{{ model.name }}</h2>
+    {% if not model.available %}
+    <p class="status warning">{{ model.reason }}</p>
+    {% else %}
+    <p>ROC-AUC <strong>{{ "%.2f"|format(model.auc) }}</strong></p>
+    <div class="cards">
+      <article class="card"><span>Accuracy</span><strong>{{ "%.2f"|format(model.metrics.accuracy) }}</strong></article>
+      <article class="card"><span>Сбалансированная точность</span><strong>{{ "%.2f"|format(model.metrics.balanced_accuracy) }}</strong></article>
+      <article class="card"><span>Полнота брака</span><strong>{{ "%.2f"|format(model.metrics.recall) }}</strong></article>
+      <article class="card"><span>Точность найденного брака</span><strong>{{ "%.2f"|format(model.metrics.precision) }}</strong></article>
+      <article class="card"><span>F1</span><strong>{{ "%.2f"|format(model.metrics.f1) }}</strong></article>
+    </div>
+    <p>На тесте: найдено {{ model.metrics.found_defect }} из {{ model.metrics.defects }} изделий с браком; пропущено {{ model.metrics.missed_defect }}. Ложных тревог: {{ model.metrics.false_alarm }} ({{ "%.2f"|format(model.metrics.false_alarm_rate * 100) }}% годных).</p>
+    {% if model.settings is defined %}<p>{{ model.settings }}.</p>{% endif %}
+    {% if model.temporal_cv_average_precision is defined %}
+    <p>Параметры выбраны по среднему PR-AUC на {{ model.temporal_cv_folds|length }} временных фрагментах внутри первых 60% данных: {{ "%.3f"|format(model.temporal_cv_average_precision) }}.</p>
+    {% endif %}
+    {% if model.minimum_precision is defined %}
+    <p>Порог {{ "%.3f"|format(model.threshold) }} выбран на следующих 20% при точности не ниже {{ "%.0f"|format(model.minimum_precision * 100) }}%: полнота {{ "%.2f"|format(model.threshold_selection.recall) }}, точность {{ "%.2f"|format(model.threshold_selection.precision) }}.</p>
+    {% if model.metrics.precision < model.minimum_precision %}
+    <p class="status warning">На последних 20% точность ниже целевого уровня: {{ "%.1f"|format(model.metrics.precision * 100) }}% против {{ "%.0f"|format(model.minimum_precision * 100) }}%.</p>
+    {% endif %}
+    {% else %}
+    <p>Порог {{ "%.3f"|format(model.threshold) }} выбран на следующих 20% при полноте брака выше 50%: ложных тревог {{ model.threshold_selection.false_alarms }}.</p>
+    {% endif %}
+    <p>Стандартный порог {{ "%.2f"|format(model.default_threshold) }}: найдено {{ model.default_metrics.found_defect }}, пропущено {{ model.default_metrics.missed_defect }}, ложных тревог {{ model.default_metrics.false_alarm }}.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+<section class="status warning">Экспериментальные методы смещают компромисс между пропуском брака и ложными тревогами. Их параметры и пороги выбираются до проверки на последних 20%, но эта история мала и уже использовалась для исследования и сравнения вариантов; метрики предварительные и не гарантируют качество на новых изделиях.</section>
+{% else %}
+<section class="status warning">Данные не загружены.</section>
+{% endif %}
+{% endblock %}

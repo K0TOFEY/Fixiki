@@ -14,7 +14,25 @@ ZONE_ORDER = ["красная", "жёлтая", "зелёная"]
 
 def chart_html(chart):
     """Преобразует график в HTML-фрагмент с локальной библиотекой Plotly."""
-    return chart.to_html(full_html=False, include_plotlyjs=False)
+    chart.update_layout(
+        template="plotly_white",
+        font={"family": "Arial, sans-serif", "size": 13, "color": "#25333b"},
+        title={"font": {"size": 16}, "x": 0.02, "xanchor": "left"},
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        colorway=["#27645f", "#c18b32", "#57728a", "#a8433c", "#64845f"],
+        hoverlabel={"bgcolor": "#ffffff", "font": {"color": "#202a31"}},
+        margin={"l": 64, "r": 24, "t": 70, "b": 56},
+    )
+    chart.update_xaxes(showline=True, linecolor="#cfd7d5", gridcolor="#e8ece9",
+                       zerolinecolor="#d6ddda")
+    chart.update_yaxes(showline=True, linecolor="#cfd7d5", gridcolor="#e8ece9",
+                       zerolinecolor="#d6ddda")
+    return chart.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        config={"responsive": True, "displaylogo": False},
+    )
 
 
 def target_charts(data):
@@ -22,8 +40,15 @@ def target_charts(data):
     counts = pd.DataFrame({"Изделие": ["Брак", "Годное"],
                            "Доля": [data["bad"].mean(), 1 - data["bad"].mean()]})
     bars = px.bar(counts, x="Изделие", y="Доля", color="Изделие",
-                  color_discrete_map={"Брак": "#c43d3d", "Годное": "#198754"})
-    line = px.line(data["weekly"], x="Дата", y="Доля", markers=True)
+                  color_discrete_map={"Брак": "#a8433c", "Годное": "#27734d"},
+                  category_orders={"Изделие": ["Годное", "Брак"]},
+                  labels={"Изделие": "Результат контроля", "Доля": "Доля изделий"},
+                  title="Доля годных изделий и брака")
+    bars.update_yaxes(tickformat=".2%", range=[0, 1])
+    line = px.line(data["weekly"], x="Дата", y="Доля", markers=True,
+                   title="Доля брака по неделям",
+                   labels={"Дата": "Неделя", "Доля": "Доля брака"})
+    line.update_yaxes(tickformat=".2%", rangemode="tozero")
     return chart_html(bars), chart_html(line)
 
 
@@ -32,7 +57,14 @@ def data_charts(data):
     counts = pd.DataFrame({"Группа": ["Осталось", "Пропуски", "0–1 уникальных значений"],
                            "Датчиков": [len(data["clean"].columns), len(data["remove_missing"]),
                                         len(data["remove_unique"])]})
-    bars = px.bar(counts, x="Группа", y="Датчиков", color="Группа")
+    bars = px.bar(counts, x="Группа", y="Датчиков", color="Группа",
+                  title="Результат очистки датчиков",
+                  labels={"Группа": "Причина", "Датчиков": "Число датчиков"},
+                  color_discrete_map={
+                      "Осталось": "#27734d",
+                      "Пропуски": "#c18b32",
+                      "0–1 уникальных значений": "#a8433c",
+                  })
     missing = px.histogram(pd.DataFrame({"Доля пропусков": data["missing"]}),
                            x="Доля пропусков", nbins=20)
     return chart_html(bars), chart_html(missing)
@@ -40,17 +72,30 @@ def data_charts(data):
 
 def sensor_charts(data):
     """Строит рейтинги двух методов и их корреляционную матрицу."""
-    mann = px.bar(data["mann"], x="AUC", y="Датчик", orientation="h", title="Манн—Уитни")
-    forest = px.bar(data["forest"], x="Важность", y="Датчик", orientation="h", title="Random Forest")
+    mann = px.bar(data["mann"], x="AUC", y="Датчик", orientation="h",
+                  title="Различие показаний между классами",
+                  labels={"AUC": "AUC-подобная мера различия", "Датчик": "Датчик"})
+    forest = px.bar(data["forest"], x="Важность", y="Датчик", orientation="h",
+                    title="Важность признаков в Random Forest",
+                    labels={"Важность": "Относительная важность", "Датчик": "Датчик"})
     names = data["keys"] + ["Брак (0/1)"]
     heat = px.imshow(data["correlations"].loc[names, names], text_auto=".2f",
-                     zmin=-1, zmax=1, color_continuous_scale="RdBu")
+                     zmin=-1, zmax=1, color_continuous_scale="RdBu",
+                     title="Корреляция рангов показаний и метки брака",
+                     labels={"x": "Показатель", "y": "Показатель", "color": "Связь"})
+    heat.update_layout(height=max(760, 28 * len(names) + 180))
+    heat.update_traces(textfont={"size": 11})
+    heat.update_xaxes(tickangle=-45, tickfont={"size": 11}, automargin=True)
+    heat.update_yaxes(tickfont={"size": 11}, automargin=True)
     return chart_html(mann), chart_html(forest), chart_html(heat)
 
 
 def time_charts(data):
     """Строит расширенную корреляцию и недельные медианы датчиков."""
-    medians = px.line(data["medians"], x="Неделя", y=data["keys"][:6])
+    medians = px.line(data["medians"], x="Неделя", y=data["keys"][:6],
+                      title="Медианные показания ключевых датчиков по неделям",
+                      labels={"Неделя": "Неделя", "value": "Медианное значение",
+                              "variable": "Датчик"})
     return chart_html(medians)
 
 
@@ -67,7 +112,7 @@ def boundary_chart(data, name):
 
 
 def when_where_charts(data):
-    """Строит долю брака по неделям и тепловую карту датчик-неделя."""
+    """Строит недельные количества брака и замеров, а также тепловую карту."""
     weekly_data = data["weekly"]
     week_ends = pd.to_datetime(weekly_data["Дата"])
     week_labels = (
@@ -80,23 +125,22 @@ def when_where_charts(data):
         "Дата окончания недели: %{x|%d.%m.%Y}<br>"
         "%{y}<extra></extra>"
     )
-    weekly = make_subplots(specs=[[{"secondary_y": True}]])
+    weekly = go.Figure()
     weekly.add_trace(
-        go.Bar(x=week_ends, y=weekly_data["Доля"], customdata=week_labels,
-               name="Доля брака",
-               hovertemplate=hover_template.replace("%{y}", "Доля брака: %{y:.1%}")),
-        secondary_y=False,
+        go.Bar(x=week_ends, y=weekly_data["sum"], customdata=week_labels,
+               name="Количество брака",
+               marker={"color": "#c43d3d"},
+               hovertemplate=hover_template.replace("%{y}", "Количество брака: %{y:.0f}")),
     )
     weekly.add_trace(
-        go.Scatter(x=week_ends, y=weekly_data["count"], customdata=week_labels,
-                   name="Количество замеров", mode="lines+markers",
-                   line={"color": "#c43d3d"},
-                   hovertemplate=hover_template.replace("%{y}", "Количество замеров: %{y:.0f}")),
-        secondary_y=True,
+        go.Bar(x=week_ends, y=weekly_data["count"], customdata=week_labels,
+               name="Количество замеров",
+               marker={"color": "#27734d"},
+               hovertemplate=hover_template.replace("%{y}", "Количество замеров: %{y:.0f}")),
     )
+    weekly.update_layout(barmode="group")
     weekly.update_xaxes(title_text="Неделя")
-    weekly.update_yaxes(title_text="Доля брака", secondary_y=False)
-    weekly.update_yaxes(title_text="Количество замеров", secondary_y=True)
+    weekly.update_yaxes(title_text="Количество изделий")
     heat = px.imshow(data["heatmap"], text_auto=".0%", zmin=0, zmax=1, aspect="auto")
     return chart_html(weekly), chart_html(heat)
 
@@ -111,7 +155,7 @@ def health_chart(health):
         marker_color="#2874a6",
         customdata=health[["Пустых в окне"]].to_numpy(),
         hovertemplate=(
-            "Датчик: %{x}<br>Доля пропусков: %{y:.1%}"
+            "Датчик: %{x}<br>Доля пропусков: %{y:.2%}"
             "<br>Пропущено в окне: %{customdata[0]}<extra></extra>"
         ),
     ))
@@ -128,7 +172,7 @@ def health_chart(health):
             name=label,
             marker={"color": color, "symbol": "line-ew", "size": 18,
                     "line": {"color": color, "width": 3}},
-            hovertemplate=f"Датчик: %{{x}}<br>{label}: %{{y:.1%}}<extra></extra>",
+            hovertemplate=f"Датчик: %{{x}}<br>{label}: %{{y:.2%}}<extra></extra>",
         ))
     chart.update_layout(
         title="Доля пропусков в последних замерах по датчикам",
@@ -138,7 +182,7 @@ def health_chart(health):
         margin={"l": 60, "r": 30, "t": 100, "b": 130},
     )
     chart.update_xaxes(title="Датчик", tickangle=-45)
-    chart.update_yaxes(title="Доля пропусков", tickformat=".0%", range=[0, 1])
+    chart.update_yaxes(title="Доля пропусков", tickformat=".2%", range=[0, 1])
     return chart_html(chart)
 
 
@@ -185,8 +229,8 @@ def missing_defect_correlation(data):
             "Пропущенных показаний: %{x}<br>"
             "Бракованных изделий: %{y}<br>"
             "Всего изделий: %{customdata[1]}<br>"
-            "Доля пропусков: %{customdata[2]:.1%}<br>"
-            "Доля брака: %{customdata[3]:.1%}<extra></extra>"
+            "Доля пропусков: %{customdata[2]:.2%}<br>"
+            "Доля брака: %{customdata[3]:.2%}<extra></extra>"
         ),
     ))
     chart.update_xaxes(title="Количество пропущенных показаний датчиков за неделю")
@@ -244,40 +288,174 @@ def defect_product_chart(data, index):
     """Рисует ключевые показания выбранного бракованного изделия."""
     values = data["clean"].loc[index, data["keys"]].dropna().rename("Значение")
     frame = values.reset_index()
-    return chart_html(px.bar(frame, x="index", y="Значение"))
+    chart = px.bar(
+        frame, x="index", y="Значение",
+        title="Показания датчиков выбранного изделия с браком",
+        labels={"index": "Датчик", "Значение": "Показание"},
+    )
+    return chart_html(chart)
 
 
 def sensor_detail_charts(data, name):
     """Строит гистограмму значений датчика и долю брака по десяти группам."""
     frame = data["clean"][[name]].copy()
     frame["Статус"] = ["Брак" if value else "Годное" for value in data["bad"]]
+    visible = frame.dropna(subset=[name])
+    lower, upper = visible[name].quantile([0.005, 0.995])
+    displayed = visible[visible[name].between(lower, upper)]
+    distribution_colors = {"Годное": "#0072b2", "Брак": "#e69f00"}
+    threshold_colors = {
+        "Типичный уровень": "#00845a",
+        "Жёлтая граница": "#b87900",
+        "Красная граница": "#c43d3d",
+    }
     histogram = px.histogram(
-        frame.dropna(subset=[name]), x=name, color="Статус", barmode="overlay",
-        histnorm="probability", orientation="v", opacity=0.65,
-        color_discrete_map={"Брак": ZONE_COLORS["красная"], "Годное": ZONE_COLORS["зелёная"]},
-        title=f"Распределение показаний {name}",
-        labels={name: "Значение датчика", "probability": "Доля изделий в группе"},
+        displayed, y=name, color="Статус", barmode="group",
+        histnorm="probability", orientation="h", opacity=1, nbins=45,
+        color_discrete_map=distribution_colors,
+        labels={name: "Значение датчика", "probability": "Probability"},
     )
     border = data["borders"][data["borders"]["Датчик"] == name].iloc[0]
-    histogram.add_vline(x=border["Центр"], line_color=ZONE_COLORS["зелёная"], annotation_text="Типичное")
-    histogram.add_vline(x=border["Жёлтая"], line_color=ZONE_COLORS["жёлтая"], annotation_text="Жёлтая граница")
-    histogram.add_vline(x=border["Красная"], line_color=ZONE_COLORS["красная"], annotation_text="Красная граница")
+    thresholds = [
+        ("Типичный уровень", border["Центр"]),
+        ("Жёлтая граница", border["Жёлтая"]),
+        ("Красная граница", border["Красная"]),
+    ]
+    for label, value in thresholds:
+        color = threshold_colors[label]
+        histogram.add_hline(
+            y=value, line_color=color, line_width=4,
+            line_dash="solid" if label == "Типичный уровень" else "dash",
+        )
+        histogram.add_trace(go.Scatter(
+            x=[None], y=[None], mode="lines", name=label,
+            line={
+                "color": color,
+                "width": 4,
+                "dash": "solid" if label == "Типичный уровень" else "dash",
+            },
+            hoverinfo="skip",
+        ))
+    value_range = [lower, upper, *[value for _, value in thresholds]]
+    padding = max((max(value_range) - min(value_range)) * 0.06, 1e-9)
+    histogram.update_layout(
+        height=500,
+        bargap=0.08,
+        legend={"orientation": "h", "y": 1.12, "x": 0.02, "xanchor": "left"},
+        margin={"l": 75, "r": 30, "t": 105, "b": 65},
+    )
+    histogram.update_xaxes(title="Probability", tickformat=".2%", rangemode="tozero")
+    histogram.update_yaxes(
+        title="Значение датчика",
+        range=[min(value_range) - padding, max(value_range) + padding],
+        zeroline=False,
+    )
     values = frame.dropna(subset=[name]).copy()
-    values["Дециль"] = pd.qcut(values[name], 10, duplicates="drop").astype(str)
+    values["Дециль"] = pd.qcut(values[name], 10, duplicates="drop")
     values["Брак"] = data["bad"][values.index]
-    grouped = values.groupby("Дециль", observed=True)["Брак"].agg(["mean", "count"]).reset_index()
-    bars = px.bar(grouped, x="Дециль", y="mean")
-    return chart_html(histogram), chart_html(bars), grouped
+    grouped = (values.groupby("Дециль", observed=True, sort=True)["Брак"]
+               .agg(["mean", "count"]).reset_index())
+    decile_intervals = grouped["Дециль"].tolist()
+    grouped["Дециль"] = [str(index) for index in range(1, len(grouped) + 1)]
+    grouped["Диапазон значений"] = [
+        f"({interval.left:.2f}, {interval.right:.2f}]"
+        for interval in decile_intervals
+    ]
+    grouped = grouped.rename(columns={"mean": "Доля брака", "count": "Изделий"})
+    grouped = grouped[[
+        "Дециль",
+        "Диапазон значений",
+        "Доля брака",
+        "Изделий",
+    ]]
+    bars = px.bar(
+        grouped, x="Дециль", y="Доля брака",
+        title="Доля брака в группах значений датчика",
+        labels={"Дециль": "Номер дециля", "Доля брака": "Доля брака"},
+        category_orders={"Дециль": grouped["Дециль"].tolist()},
+        custom_data=["Дециль", "Диапазон значений", "Изделий"],
+    )
+    bars.update_traces(
+        hovertemplate="Дециль: %{customdata[0]}<br>Диапазон: %{customdata[1]}<br>"
+                      "Доля брака: %{y:.2%}<br>Изделий: %{customdata[2]}<extra></extra>"
+    )
+    bars.update_yaxes(tickformat=".2%", rangemode="tozero")
+    bars.update_xaxes(
+        tickvals=grouped["Дециль"].tolist(),
+        ticktext=[
+            f"{number}  {interval}"
+            for number, interval in zip(
+                grouped["Дециль"], grouped["Диапазон значений"]
+            )
+        ],
+        tickangle=-45,
+    )
+
+    weekly_values = pd.DataFrame({
+        "Дата": pd.to_datetime(data["labels"]["datetime"]),
+        "Показание": data["clean"][name],
+    }).dropna(subset=["Показание"])
+    iso_calendar = weekly_values["Дата"].dt.isocalendar()
+    weekly_values["Неделя"] = (
+        iso_calendar["year"].astype(str)
+        + " · № "
+        + iso_calendar["week"].astype(str)
+    )
+    weekly = (weekly_values.groupby("Неделя", sort=True)["Показание"]
+              .agg(["median", "count"]).reset_index()
+              .rename(columns={"median": "Медианное показание", "count": "Измерений"}))
+    weekly_chart = px.bar(
+        weekly, x="Неделя", y="Медианное показание",
+        title=f"Медианное показание {name} по неделям",
+        labels={"Неделя": "Неделя", "Медианное показание": "Медианное показание"},
+        custom_data=["Измерений"],
+    )
+    weekly_chart.update_traces(
+        hovertemplate="Неделя: %{x}<br>Медиана: %{y}<br>Измерений: %{customdata[0]}<extra></extra>"
+    )
+    border = data["borders"][data["borders"]["Датчик"] == name].iloc[0]
+    if len(weekly):
+        week_range = [weekly["Неделя"].iloc[0], weekly["Неделя"].iloc[-1]]
+        weekly_chart.add_trace(go.Scatter(
+            x=week_range,
+            y=[border["Жёлтая"], border["Жёлтая"]],
+            mode="lines",
+            name="Жёлтая граница",
+            line={"color": "#d99a00", "width": 2, "dash": "dash"},
+            hovertemplate="Жёлтая граница: %{y:.2f}<extra></extra>",
+        ))
+        weekly_chart.add_trace(go.Scatter(
+            x=week_range,
+            y=[border["Красная"], border["Красная"]],
+            mode="lines",
+            name="Красная граница",
+            line={"color": "#c43d3d", "width": 3, "dash": "dash"},
+            hovertemplate="Красная граница: %{y:.2f}<extra></extra>",
+        ))
+    weekly_chart.update_layout(
+        legend={"orientation": "h", "y": 1.08, "x": 0}
+    )
+    weekly_chart.update_xaxes(tickangle=-45)
+    return chart_html(histogram), chart_html(bars), chart_html(weekly_chart), grouped
 
 
 def risk_charts(risk, contributions):
     """Рисует ROC-кривую и вклады датчиков в выбранное изделие."""
-    curve = px.line(risk["curve"], x="Ложные срабатывания", y="Найденный брак",
-                    title="ROC-кривая на последних 20%")
+    curve = px.line(
+        risk["curve"], x="Ложные срабатывания", y="Найденный брак",
+        title="Компромисс между найденным браком и ложными тревогами",
+        labels={"Ложные срабатывания": "Доля ложных тревог среди годных",
+                "Найденный брак": "Доля найденного брака"},
+    )
     curve.add_scatter(x=[0, 1], y=[0, 1], mode="lines", name="Случайный ориентир",
-                      line={"dash": "dash", "color": "gray"})
+                      line={"dash": "dash", "color": "#8b969a"})
+    curve.update_xaxes(tickformat=".2%", range=[0, 1])
+    curve.update_yaxes(tickformat=".2%", range=[0, 1])
     bars = px.bar(contributions, x="Вклад", y="Датчик", orientation="h",
-                  color="Вклад", color_continuous_scale=["blue", "red"])
+                  color="Вклад", color_continuous_scale=["#57728a", "#c9ceca", "#a8433c"],
+                  color_continuous_midpoint=0,
+                  labels={"Вклад": "Вклад в оценку модели", "Датчик": "Датчик"})
+    bars.add_vline(x=0, line_color="#59676d", line_width=1)
     return chart_html(curve), chart_html(bars)
 
 
@@ -295,7 +473,7 @@ def p_chart(data):
     chart.add_hline(y=upper, line_color="red", line_dash="dash", annotation_text="Верхняя граница")
     chart.add_hline(y=lower, line_color="red", line_dash="dash", annotation_text="Нижняя граница")
     outside = frame[frame["Доля"] > upper]
-    chart.update_yaxes(title="Доля брака в окне")
+    chart.update_yaxes(title="Доля брака в окне", tickformat=".2%", range=[0, 0.6])
     chart.add_scatter(x=outside["Дата"], y=outside["Доля"], mode="markers",
                       name="Рост выше коридора", marker={"color": "red"})
     return chart_html(chart)
@@ -320,7 +498,9 @@ def period_scale_charts(data, period):
     for name in values["Масштаб"].unique():
         scale = values[values["Масштаб"] == name]
         chart.add_scatter(x=scale["Дата"], y=scale["Порог"], mode="lines",
-                          name="Порог " + name, line={"dash": "dash"})
+                          name="Верхняя граница — " + name,
+                          line={"dash": "dash"})
+    chart.update_yaxes(tickformat=".2%", rangemode="tozero")
     return chart_html(chart)
 
 

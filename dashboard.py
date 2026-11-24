@@ -49,10 +49,15 @@ def load_initial_data():
 
 def table_html(frame):
     """Преобразует таблицу в безопасный HTML для шаблона."""
-    return frame.to_html(index=False, border=0, classes="data-table", na_rep="не найдено", escape=True)
+    display_frame = frame.copy()
+    numeric_columns = display_frame.select_dtypes(include=["number"]).columns
+    display_frame[numeric_columns] = display_frame[numeric_columns].round(2)
+    return display_frame.to_html(index=False, border=0, classes="data-table",
+                                 na_rep="не найдено", escape=True,
+                                 float_format=lambda value: f"{value:.2f}")
 
 
-def zone_table_html(frame):
+def zone_table_html(frame, show_zone=True):
     """Показывает датчики в порядке зон и окрашивает строки таблицы."""
     colors = {
         "красная": "#fae4e4",
@@ -61,11 +66,23 @@ def zone_table_html(frame):
         "Нет данных": "#edf2f5",
     }
 
+    display_frame = frame if show_zone else frame.drop(columns=["Зона"])
+
     def row_color(row):
-        style = "background-color: " + colors.get(row["Зона"], "white")
+        zone = frame.loc[row.name, "Зона"]
+        style = "background-color: " + colors.get(zone, "white")
         return [style] * len(row)
 
-    return (frame.style.apply(row_color, axis=1).format(escape="html")
+    formatters = {}
+    for column in display_frame.columns:
+        if pd.api.types.is_numeric_dtype(display_frame[column]):
+            if "доля брака" in column.lower():
+                formatters[column] = lambda value: "" if pd.isna(value) else f"{value:.2%}"
+            else:
+                formatters[column] = lambda value: "" if pd.isna(value) else f"{value:.2f}"
+
+    return (display_frame.style.apply(row_color, axis=1)
+            .format(formatters, na_rep="не найдено", escape="html")
             .hide(axis="index").to_html(table_attributes='class="data-table"'))
 
 
@@ -210,6 +227,27 @@ def signal_basis(data, period):
     return output
 
 
+def burst_sensor_candidates(data, period):
+    """Ранжирует датчики по изменению вклада модели в периоде роста."""
+    risk = data["model"]
+    if not risk["available"]:
+        return "", risk["reason"]
+    times = data["labels"]["datetime"]
+    period_mask = (times >= period["Начало"]) & (times <= period["Конец"])
+    reference_mask = (np.arange(len(data["bad"])) < data["split"]) & (data["bad"] == 0)
+    if not period_mask.any() or not reference_mask.any():
+        return "", "Недостаточно изделий для сравнения с опорной историей."
+    contributions = risk["contributions"]
+    difference = contributions.loc[period_mask].mean() - contributions.loc[reference_mask].mean()
+    result = pd.DataFrame({
+        "Датчик": difference.index,
+        "Изменение вклада в балл модели": difference.values,
+    })
+    result = result.sort_values("Изменение вклада в балл модели", ascending=False).head(5)
+    result["Изменение вклада в балл модели"] = result["Изменение вклада в балл модели"].round(2)
+    return table_html(result.reset_index(drop=True)), ""
+
+
 def save_uploads(files, password):
     """Проверяет типы и пароли, сохраняет корректную загрузку и пересчитывает данные."""
     required_password = os.getenv("UPLOAD_PASSWORD")
@@ -325,15 +363,11 @@ def home():
         }
         period = {"start": start, "end": end}
         cleanup = charts.data_charts(data)
-        target = charts.target_charts(data)
-        removed = table_html(data["removed"])
     else:
         cleanup = []
-        target = []
-        removed = ""
     return render_template("home.html", summary=summary, period=period,
                            shewhart=charts.p_chart(data) if data else "",
-                           cleanup=cleanup, target=target, removed=removed,
+                           cleanup=cleanup,
                            message=STATE["message"])
 
 
@@ -348,12 +382,17 @@ def late_page():
     period, index = selected_period(data)
     scales = charts.period_scale_charts(data, period) if period is not None else ""
     bases = signal_basis(data, period) if period is not None else []
+    candidates, candidates_reason = (
+        burst_sensor_candidates(data, period) if period is not None else ("", "")
+    )
     table = table_html(data["late"]["table"])
     summary = period_summary(data, period) if period is not None else None
     return render_template("late.html", data=data, period=period, index=index,
                            periods=data["late"]["table"], summary=summary,
                            table=table, scales=scales,
-                           rolling=charts.p_chart(data), bases=bases, message=STATE["message"])
+                           rolling=charts.p_chart(data), bases=bases,
+                           candidates=candidates, candidates_reason=candidates_reason,
+                           message=STATE["message"])
 
 
 @app.route("/data")
@@ -364,18 +403,14 @@ def data_page():
 
 @app.route("/sensors")
 def sensors_page():
-    """Показывает рейтинги датчиков, ранговые связи и дрейф во времени."""
+    """Показывает рейтинги датчиков и ранговые связи."""
     data = current_data()
     if not data:
         return render_template("sensors.html", message=STATE["message"])
     mann, forest, heat = charts.sensor_charts(data)
     medians = charts.time_charts(data)
-    time_rho = data["correlations"]["Время"].drop("Время")
-    drift = pd.DataFrame({"Датчик": time_rho.index, "Связь со временем": time_rho.values})
-    drift["Статус"] = ["Возможный дрейф" if abs(value) > 0.3 else "Не отмечен"
-                       for value in time_rho.values]
     return render_template("sensors.html", data=data, charts=[mann, forest, heat, medians],
-                           table=table_html(drift), message=STATE["message"])
+                           message=STATE["message"])
 
 
 @app.route("/sensor", methods=["GET", "POST"])
@@ -387,9 +422,10 @@ def sensor_page():
     name = request.values.get("sensor", data["keys"][0])
     if name not in data["keys"]:
         name = data["keys"][0]
-    histogram, bars, groups = charts.sensor_detail_charts(data, name)
+    histogram, bars, weekly, groups = charts.sensor_detail_charts(data, name)
     return render_template("sensor.html", data=data, sensor=name, histogram=histogram,
-                           bars=bars, table=table_html(groups), message=STATE["message"])
+                           bars=bars, weekly=weekly, table=table_html(groups),
+                           message=STATE["message"])
 
 
 @app.route("/limits", methods=["GET", "POST"])
@@ -424,24 +460,17 @@ def time_page():
     if not data:
         return render_template("time.html", message=STATE["message"])
     weekly, heat = charts.when_where_charts(data)
-    missing_correlation, correlation_table = charts.missing_defect_correlation(data)
-    correlation_display = correlation_table.copy()
-    if not correlation_display.empty:
-        correlation_display["Корреляция Спирмена"] = correlation_display[
-            "Корреляция Спирмена"
-        ].map(lambda value: f"{value:+.2f}")
     health = sensor_health_summary(data)
     health_display = health.copy()
     for column in ["Обычная доля пропусков", "Жёлтая граница", "Красная граница",
                    "Пропуски за последние 50"]:
-        health_display[column] = health_display[column].map(lambda value: f"{value:.1%}")
-    return render_template("time.html", data=data, charts=[weekly, heat,
-                           charts.health_chart(health) if not health.empty else "",
-                           missing_correlation],
+        health_display[column] = health_display[column].map(lambda value: f"{value:.2%}")
+    return render_template("time.html", data=data,
+                           charts=[weekly, heat,
+                                   charts.health_chart(health) if not health.empty else ""],
                            table=table_html(data["weekly"]),
                            health=zone_table_html(health_display) if not health.empty else "",
                            health_empty=health.empty,
-                           correlation=table_html(correlation_display),
                            window=min(HEALTH_WINDOW, len(data["bad"])),
                            message=STATE["message"])
 
@@ -457,8 +486,6 @@ def attention_page():
         request.form.get("latest_index"), default_latest_index, len(data["bad"])
     )
     last_readings = latest_sensor_readings(data, latest_index)
-    flagged = last_readings[last_readings["Зона"].isin(["жёлтая", "красная"])].copy()
-    flagged["Сигмы"] = flagged["Отклонение, σ"]
     yellow_count = int((last_readings["Зона"] == "жёлтая").sum())
     red_count = int((last_readings["Зона"] == "красная").sum())
     missing_count = int((last_readings["Зона"] == "Нет данных").sum())
@@ -468,24 +495,24 @@ def attention_page():
     if data["bad"][index] != 1:
         index = default_index
         index_error = True
-    manual = manual_check(data) if request.form.get("mode") == "manual" else pd.DataFrame()
     options = [{"index": int(item), "date": data["labels"].loc[item, "datetime"]}
                for item in defect_indices]
     defects = defect_details(data, index)
     recent_rate = float(data["bad"][-RECENT_COUNT:].mean())
     limit = data["ordinary"] + 3 * np.sqrt(data["ordinary"] * (1 - data["ordinary"]) / RECENT_COUNT)
     last_time = data["labels"].loc[latest_index, "datetime"]
-    return render_template("attention.html", data=data, latest=zone_table_html(last_readings),
-                           latest_chart=charts.signal_basis_chart(flagged),
+    return render_template("attention.html", data=data,
+                           latest=zone_table_html(last_readings, show_zone=False),
                            last_time=last_time,
                            latest_index=latest_index,
                            total_rows=len(data["bad"]),
                            latest_label="Брак" if data["bad"][latest_index] else "Годное",
                            latest_index_error=latest_index_error,
                            yellow_count=yellow_count, red_count=red_count,
-                           missing_count=missing_count, defects=table_html(defects),
-                           defect_chart=charts.defect_product_chart(data, index), index=index,
-                           defect_indices=options, manual=table_html(manual) if len(manual) else "",
+                           missing_count=missing_count,
+                           defects=zone_table_html(defects, show_zone=False),
+                           index=index,
+                           defect_indices=options,
                            growth_signal=recent_rate > limit, recent_rate=recent_rate,
                            control_limit=limit,
                            index_error=index_error,
@@ -604,17 +631,50 @@ def risk_page():
                            message=STATE["message"])
 
 
+@app.route("/testing")
+def testing_page():
+    """Сравнивает алгоритмы градиентного бустинга на выбранном периоде."""
+    data = current_data()
+    if not data:
+        return render_template("testing.html", message=STATE["message"])
+    comparison = data.get("model_comparison")
+    if comparison is None:
+        comparison = functions.make_model_comparison(
+            data["clean"], data["bad"], data["split"]
+        )
+        data["model_comparison"] = comparison
+    return render_template("testing.html", data=data, comparison=comparison,
+                           message=STATE["message"])
+
+
 @app.route("/upload", methods=["GET", "POST"])
 def upload_page():
     """Показывает форму загрузки и сохраняет прошедшие проверку данные."""
     message = request.args.get("message", "")
+    data = current_data()
+    manual = ""
+    manual_submitted = False
     if request.method == "POST":
+        if request.form.get("mode") == "manual":
+            manual_submitted = True
+            if data:
+                result = manual_check(data)
+                if len(result):
+                    manual = table_html(result)
+            else:
+                message = "Сначала загрузите данные, чтобы сравнить показания с историей."
+            return render_template(
+                "upload.html", message=message, data=data, manual=manual,
+                manual_submitted=manual_submitted,
+                password_required=bool(os.getenv("UPLOAD_PASSWORD")),
+            )
         try:
             message = save_uploads(request.files, request.form.get("password", ""))
         except (ValueError, OSError, IndexError) as error:
             message = "Не удалось прочитать данные: " + str(error)
         return redirect(url_for("upload_page", message=message))
-    return render_template("upload.html", message=message,
+    return render_template("upload.html", message=message, data=data, manual=manual,
+                           manual_submitted=manual_submitted,
                            password_required=bool(os.getenv("UPLOAD_PASSWORD")))
 
 

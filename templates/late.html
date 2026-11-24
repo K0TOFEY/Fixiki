@@ -20,10 +20,10 @@
 <section class="summary-block">
   <p class="eyebrow">Ретроспективное сравнение, не реальное оповещение</p>
   <h2>{{ summary.start.strftime("%d.%m.%Y %H:%M") }} — {{ summary.end.strftime("%d.%m.%Y %H:%M") }}</h2>
-  <p>В этом отрезке: <b>{{ summary.defects }} брака из {{ summary.items }} изделий</b> ({{ "%.1f"|format(summary.rate * 100) }}%). Опорный уровень в текущем расчёте — {{ "%.1f"|format(summary.baseline * 100) }}%.</p>
+  <p>В этом отрезке: <b>{{ summary.defects }} брака из {{ summary.items }} изделий</b> ({{ "%.2f"|format(summary.rate * 100) }}%). Опорный уровень в текущем расчёте — {{ "%.2f"|format(summary.baseline * 100) }}%.</p>
   {% if summary.method %}
-    <p>Первым из оперативных правил сработало <b>{{ summary.method }}</b>: {{ summary.signal_time.strftime("%d.%m.%Y %H:%M") }}, примерно через {{ "%.1f"|format(summary.hours_to_signal) }} ч от начала выделенного периода.</p>
-    {% if summary.days_before_weekly is defined %}<p>Это примерно на {{ "%.1f"|format(summary.days_before_weekly) }} дней раньше недельного отчёта.</p>{% endif %}
+    <p>Первым из оперативных правил сработало <b>{{ summary.method }}</b>: {{ summary.signal_time.strftime("%d.%m.%Y %H:%M") }}, примерно через {{ "%.2f"|format(summary.hours_to_signal) }} ч от начала выделенного периода.</p>
+    {% if summary.days_before_weekly is defined %}<p>Это примерно на {{ "%.2f"|format(summary.days_before_weekly) }} дней раньше недельного отчёта.</p>{% endif %}
   {% else %}
     <p>Оперативные правила не сработали в выбранном периоде.</p>
   {% endif %}
@@ -53,6 +53,12 @@
     {% if basis.empty %}<p>В жёлтой или красной зоне ключевых датчиков не найдено.</p>{% endif %}
   {% endfor %}
   <p class="caption">Эти показания не запускают показанные здесь правила и не доказывают причину брака. Используйте их как подсказку, что проверить в оборудовании и передаче данных.</p>
+</section>
+<section class="card">
+  <h2>Какие датчики повлияли на оценку модели в периоде</h2>
+  {% if candidates %}{{ candidates|safe }}
+  <p class="caption">Показаны датчики, чей средний вклад в балл логистической модели сильнее всего вырос в выбранном периоде относительно годных изделий обучающей истории. Это связь с оценкой модели, а не доказательство, что датчик вызвал всплеск или брак.</p>
+  {% else %}<p>{{ candidates_reason or "Для выбранного периода нет подходящей модели или данных." }}</p>{% endif %}
 </section>
 {% endif %}
 {% else %}

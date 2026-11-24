@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title description">
+  <title id="title">Архитектура проекта контроля качества — вариант 3</title>
+  <desc id="description">Три отдельные дорожки показывают загрузку данных, загрузку сохранённых файлов при запуске и формирование страницы отчёта. В каждой дорожке поток идёт только слева направо.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#46636b"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #24343a; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #5b6b70; }
+      .lane-title { font-size: 21px; font-weight: 700; }
+      .step { font-size: 12px; font-weight: 700; letter-spacing: 1px; fill: #45636a; }
+      .card-title { font-size: 19px; font-weight: 700; }
+      .body { font-size: 15px; }
+      .note { font-size: 13px; fill: #526269; }
+      .lane { fill: #fff; stroke: #d7dfdc; stroke-width: 2; }
+      .input { fill: #f5f1e8; stroke: #dfd4bf; stroke-width: 2; }
+      .service { fill: #eaf2f4; stroke: #bfd0d4; stroke-width: 2; }
+      .compute { fill: #edf4ef; stroke: #cad9ce; stroke-width: 2; }
+      .output { fill: #eef1f7; stroke: #cbd2e0; stroke-width: 2; }
+      .arrow { stroke: #46636b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .rule { stroke: #dce3e0; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1080" fill="#f5f7f5"/>
+  <text x="64" y="70" class="title">Архитектура проекта контроля качества</text>
+  <text x="64" y="105" class="subtitle">Вариант 3 · каждый сценарий показан отдельно, направление потока — слева направо</text>
+
+  <!-- Lane 1 -->
+  <rect x="48" y="145" width="1504" height="265" rx="18" class="lane"/>
+  <text x="80" y="188" class="lane-title">A. Загрузка нового набора</text>
+
+  <rect x="80" y="218" width="280" height="145" rx="12" class="input"/>
+  <text x="104" y="249" class="step">ВХОД</text>
+  <text x="104" y="282" class="card-title">Файл от пользователя</text>
+  <text x="104" y="313" class="body">CSV: datetime, label, датчики</text>
+  <text x="104" y="339" class="note">или пара features.data / labels.data</text>
+
+  <path d="M360 290 H420" class="arrow"/>
+
+  <rect x="430" y="218" width="280" height="145" rx="12" class="service"/>
+  <text x="454" y="249" class="step">FLASK · dashboard.py</text>
+  <text x="454" y="282" class="card-title">Приём и проверка</text>
+  <text x="454" y="313" class="body">Тип и размер файла</text>
+  <text x="454" y="339" class="note">Метки и число строк проверяет загрузчик</text>
+
+  <path d="M710 290 H770" class="arrow"/>
+
+  <rect x="780" y="218" width="300" height="145" rx="12" class="compute"/>
+  <text x="804" y="249" class="step">functions.py</text>
+  <text x="804" y="282" class="card-title">Расчёт аналитики</text>
+  <text x="804" y="313" class="body">Очистка · границы · сигналы</text>
+  <text x="804" y="339" class="note">Недельная статистика и ML-оценка</text>
+
+  <path d="M1080 290 H1140" class="arrow"/>
+
+  <rect x="1150" y="218" width="365" height="145" rx="12" class="output"/>
+  <text x="1174" y="249" class="step">ПОСЛЕ УСПЕШНОЙ ЗАГРУЗКИ</text>
+  <text x="1174" y="282" class="card-title">Файлы + память процесса</text>
+  <text x="1174" y="313" class="body">Файлы сохраняются в data/</text>
+  <text x="1174" y="339" class="note">Расчёты помещаются в STATE</text>
+
+  <text x="80" y="392" class="note">Новая загрузка заменяет текущий набор данных и пересчитывает страницы.</text>
+
+  <!-- Lane 2 -->
+  <rect x="48" y="435" width="1504" height="245" rx="18" class="lane"/>
+  <text x="80" y="478" class="lane-title">B. Запуск приложения с данными, загруженными ранее</text>
+
+  <rect x="80" y="510" width="320" height="120" rx="12" class="input"/>
+  <text x="104" y="542" class="step">ЛОКАЛЬНОЕ ХРАНЕНИЕ</text>
+  <text x="104" y="575" class="card-title">data/</text>
+  <text x="104" y="603" class="note">input.csv или файлы features / labels</text>
+
+  <path d="M400 570 H500" class="arrow"/>
+
+  <rect x="510" y="510" width="320" height="120" rx="12" class="service"/>
+  <text x="534" y="542" class="step">СТАРТ · dashboard.py</text>
+  <text x="534" y="575" class="card-title">load_initial_data()</text>
+  <text x="534" y="603" class="note">Находит файл или пару файлов</text>
+
+  <path d="M830 570 H930" class="arrow"/>
+
+  <rect x="940" y="510" width="320" height="120" rx="12" class="compute"/>
+  <text x="964" y="542" class="step">functions.py</text>
+  <text x="964" y="575" class="card-title">Чтение и пересчёт</text>
+  <text x="964" y="603" class="note">load_inputs() → calculate()</text>
+
+  <path d="M1260 570 H1360" class="arrow"/>
+
+  <rect x="1370" y="510" width="145" height="120" rx="12" class="output"/>
+  <text x="1393" y="542" class="step">RAM</text>
+  <text x="1393" y="575" class="card-title">STATE</text>
+  <text x="1393" y="603" class="note">в памяти</text>
+
+  <text x="80" y="657" class="note">Файлы находятся на диске; рассчитанное состояние не хранится в отдельной базе данных.</text>
+
+  <!-- Lane 3 -->
+  <rect x="48" y="705" width="1504" height="265" rx="18" class="lane"/>
+  <text x="80" y="748" class="lane-title">C. Просмотр страницы пользователем</text>
+
+  <rect x="80" y="780" width="280" height="145" rx="12" class="input"/>
+  <text x="104" y="811" class="step">ДЕЙСТВИЕ</text>
+  <text x="104" y="844" class="card-title">Браузер</text>
+  <text x="104" y="875" class="body">Открыть страницу</text>
+  <text x="104" y="901" class="note">или выбрать даты анализа</text>
+
+  <path d="M360 852 H420" class="arrow"/>
+
+  <rect x="430" y="780" width="280" height="145" rx="12" class="service"/>
+  <text x="454" y="811" class="step">ЗАПРОС · dashboard.py</text>
+  <text x="454" y="844" class="card-title">Flask-маршрут</text>
+  <text x="454" y="875" class="body">Выбирает нужные данные</text>
+  <text x="454" y="901" class="note">При смене дат может пересчитать период</text>
+
+  <path d="M710 852 H770" class="arrow"/>
+
+  <rect x="780" y="780" width="300" height="145" rx="12" class="compute"/>
+  <text x="804" y="811" class="step">ВИЗУАЛИЗАЦИЯ</text>
+  <text x="804" y="844" class="card-title">charts.py + templates/</text>
+  <text x="804" y="875" class="body">Plotly · Jinja · HTML</text>
+  <text x="804" y="901" class="note">Формируют таблицы и графики</text>
+
+  <path d="M1080 852 H1140" class="arrow"/>
+
+  <rect x="1150" y="780" width="365" height="145" rx="12" class="output"/>
+  <text x="1174" y="811" class="step">ОТВЕТ СЕРВЕРА</text>
+  <text x="1174" y="844" class="card-title">Страница в браузере</text>
+  <text x="1174" y="875" class="body">Таблицы и интерактивные графики</text>
+  <text x="1174" y="901" class="note">Plotly.js и стили CSS</text>
+
+  <text x="80" y="953" class="note">Здесь показан путь одного запроса: от браузера к серверу и обратно как готовая HTML-страница, без возвратных стрелок на схеме.</text>
+
+  <!-- Footer -->
+  <rect x="48" y="990" width="1504" height="62" rx="12" fill="#edf0ee" stroke="#d4dcd8" stroke-width="2"/>
+  <text x="80" y="1027" class="body">Границы текущей версии: нет потока данных с линии, интеграции ERP/MES, автоматических оповещений и журнала реакции на сигнал.</text>
+</svg>

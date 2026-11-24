@@ -18,40 +18,25 @@
   <form method="post">
     <button type="submit" name="reset" value="1" formnovalidate>Показать весь набор</button>
   </form>
-  <p class="caption">Даты ограничены загруженным файлом. Для пересчёта нужно не меньше 30 изделий и оба класса меток в первых 80% выбранного периода.</p>
 </section>
 <section class="cards">
   <article class="card"><span>Период данных</span><strong>{{ summary.first_date.strftime("%d.%m.%Y") }} — {{ summary.last_date.strftime("%d.%m.%Y") }}</strong></article>
   <article class="card"><span>Изделий в наборе</span><strong>{{ summary.rows }}</strong></article>
   <article class="card"><span>Бракованных изделий</span><strong>{{ summary.bad }} ({{ "%.2f"|format(summary.bad_rate * 100) }}%)</strong></article>
   <article class="card"><span>Датчиков осталось после очистки</span><strong>{{ summary.kept_sensors }} / {{ summary.sensor_count }}</strong></article>
-  <article class="card"><span>Пустые ячейки</span><strong>{{ "%.1f"|format(summary.missing_before * 100) }}% → {{ "%.1f"|format(summary.missing_after * 100) }}%</strong></article>
+  <article class="card"><span>Пустые ячейки</span><strong>{{ "%.2f"|format(summary.missing_before * 100) }}% → {{ "%.2f"|format(summary.missing_after * 100) }}%</strong></article>
   <article class="card"><span>Периодов роста найдено в истории</span><strong>{{ summary.periods }}</strong></article>
 </section>
-<section class="status notice"><b>Расчёты выполнены для выбранного периода.</b> Последнее изделие в нём: {{ summary.last_date.strftime("%d.%m.%Y %H:%M") }}. Это не онлайн-мониторинг.</section>
-<p><a class="action-link" href="{{ url_for('late_page') }}">Перейти к разбору всплеска</a></p>
+<section class="status notice"><b>Расчёты выполнены для выбранного периода.</b> Последнее изделие в нём: {{ summary.last_date.strftime("%d.%m.%Y %H:%M") }}.</section>
 <section class="card">
   <h2>Карта Шухарта: доля брака</h2>
   <div class="chart">{{ shewhart|safe }}</div>
-  <p class="caption">Каждая точка — доля брака в последних 20 изделиях. Зелёная линия — обычный уровень; красные линии — контрольные границы. Красные точки выше верхней границы отмечают необычно высокий уровень. Карта показывает уже известные метки брака, это не прогноз.</p>
+  <p class="caption">Каждая точка — доля брака в последних 20 изделиях. Зелёная линия — обычный уровень; красные линии — контрольные границы. Красные точки выше верхней границы отмечают необычно высокий уровень. Шкала ограничена 60%, чтобы сосредоточить внимание на рабочем диапазоне. Карта показывает уже известные метки брака, это не прогноз.</p>
 </section>
 <section class="card">
   <h2>Очистка датчиков</h2>
   <div class="chart">{{ cleanup[0]|safe }}</div>
   <p class="caption">Столбцы показывают, сколько датчиков осталось и сколько удалено по каждой причине. График нужен, чтобы оценить, сколько признаков доступно для дальнейшего анализа.</p>
-  <div class="chart">{{ cleanup[1]|safe }}</div>
-  <p class="caption">Каждый столбец — число датчиков с такой долей пропусков: по горизонтали доля пустых значений, по вертикали количество датчиков. Помогает увидеть, насколько данные датчиков полны.</p>
-  {{ removed|safe }}
-  <p class="caption">Удаляются датчики с пропусками выше 50% и с 0–1 уникальным непустым значением. Пропуски не трактуются как ноль.</p>
-</section>
-<section class="card">
-  <h2>Целевая метка и доля брака</h2>
-  <p>Метка 1 = брак, −1 = годное.</p>
-  <div class="chart">{{ target[0]|safe }}</div>
-  <p class="caption">Столбцы показывают долю годных изделий и брака во всём выбранном периоде. Нужен, чтобы увидеть баланс классов и понять, насколько редок брак.</p>
-  <div class="chart">{{ target[1]|safe }}</div>
-  <p class="caption">Линия показывает долю брака по неделям: дата на горизонтальной оси, доля от 0 до 1 на вертикальной. Нужна, чтобы увидеть, когда доля менялась; недельное усреднение может скрыть короткий всплеск.</p>
-  <p class="caption">Недельная доля брака — число бракованных изделий, делённое на число изделий в неделе. Короткий всплеск может сгладиться при недельной группировке.</p>
 </section>
 {% else %}
 <section class="status warning"><b>⚠ Внимание</b> Данные пока не загружены.</section>

@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title description">
+  <title id="title">Архитектура проекта контроля качества — потоки данных</title>
+  <desc id="description">Упрощённая схема отдельно показывает загрузку файла, расчёт при старте приложения и отображение отчёта. Сплошные стрелки направлены по ходу данных.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#47616a"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #24343a; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #5c6b70; }
+      .section { font-size: 21px; font-weight: 700; }
+      .step { font-size: 13px; font-weight: 700; letter-spacing: 1px; fill: #42636a; }
+      .head { font-size: 20px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .note { font-size: 14px; fill: #53636a; }
+      .small { font-size: 13px; fill: #53636a; }
+      .card { fill: #fff; stroke: #ccd6d4; stroke-width: 2; }
+      .blue { fill: #eaf2f4; stroke: #bfd0d4; stroke-width: 2; }
+      .green { fill: #edf4ef; stroke: #cad9ce; stroke-width: 2; }
+      .sand { fill: #f5f1e8; stroke: #ded5c3; stroke-width: 2; }
+      .arrow { stroke: #47616a; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .divider { stroke: #dce3e0; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1120" fill="#f6f7f4"/>
+  <text x="64" y="70" class="title">Архитектура проекта контроля качества</text>
+  <text x="64" y="104" class="subtitle">Три отдельных сценария. Стрелка всегда показывает направление передачи данных.</text>
+
+  <!-- Flow 1: upload -->
+  <rect x="48" y="145" width="1504" height="275" rx="16" fill="#eef3f1"/>
+  <text x="80" y="187" class="section">1. Пользователь загружает данные</text>
+  <rect x="80" y="220" width="270" height="145" rx="12" class="card"/>
+  <text x="104" y="251" class="step">ВХОДНОЙ ФАЙЛ</text>
+  <text x="104" y="285" class="head">CSV</text>
+  <text x="104" y="311" class="note">datetime · label · датчики</text>
+  <text x="104" y="343" class="note">или features.data + labels.data</text>
+
+  <path d="M350 292 H425" class="arrow"/>
+  <text x="364" y="277" class="small">загрузка</text>
+
+  <rect x="435" y="220" width="300" height="145" rx="12" class="blue"/>
+  <text x="459" y="251" class="step">ВЕБ-СЛОЙ</text>
+  <text x="459" y="285" class="head">Flask</text>
+  <text x="459" y="311" class="note">dashboard.py · маршрут /upload</text>
+  <text x="459" y="343" class="note">проверка типа и размера файлов</text>
+
+  <path d="M735 292 H810" class="arrow"/>
+  <text x="746" y="277" class="small">проверенные данные</text>
+
+  <rect x="820" y="220" width="330" height="145" rx="12" class="green"/>
+  <text x="844" y="251" class="step">ЧТЕНИЕ И РАСЧЁТ</text>
+  <text x="844" y="285" class="head">functions.py</text>
+  <text x="844" y="311" class="note">формат, метки, соответствие строк</text>
+  <text x="844" y="343" class="note">очистка, статистика, сигналы, ML</text>
+
+  <path d="M1150 292 H1225" class="arrow"/>
+  <text x="1160" y="277" class="small">результат расчёта</text>
+
+  <rect x="1235" y="220" width="280" height="145" rx="12" class="sand"/>
+  <text x="1259" y="251" class="step">СОСТОЯНИЕ ПРОЦЕССА</text>
+  <text x="1259" y="285" class="head">STATE в памяти</text>
+  <text x="1259" y="311" class="note">текущий набор и рассчитанные</text>
+  <text x="1259" y="333" class="note">показатели доступны страницам</text>
+
+  <text x="80" y="397" class="small">После успешной обработки загруженные файлы сохраняются локально в data/. Следующая загрузка заменяет текущий набор.</text>
+
+  <!-- Flow 2: startup -->
+  <rect x="48" y="450" width="1504" height="230" rx="16" fill="#fff"/>
+  <text x="80" y="492" class="section">2. Приложение запускается с уже сохранёнными данными</text>
+  <rect x="80" y="525" width="300" height="112" rx="12" class="sand"/>
+  <text x="104" y="559" class="step">ЛОКАЛЬНЫЕ ФАЙЛЫ</text>
+  <text x="104" y="592" class="head">Папка data/</text>
+  <text x="104" y="617" class="note">input.csv или пара файлов данных</text>
+
+  <path d="M380 581 H495" class="arrow"/>
+  <text x="396" y="566" class="small">читает при старте</text>
+
+  <rect x="505" y="525" width="300" height="112" rx="12" class="blue"/>
+  <text x="529" y="559" class="step">ЗАГРУЗЧИК</text>
+  <text x="529" y="592" class="head">dashboard.py</text>
+  <text x="529" y="617" class="note">load_initial_data()</text>
+
+  <path d="M805 581 H920" class="arrow"/>
+  <text x="819" y="566" class="small">передаёт на расчёт</text>
+
+  <rect x="930" y="525" width="300" height="112" rx="12" class="green"/>
+  <text x="954" y="559" class="step">АНАЛИТИКА</text>
+  <text x="954" y="592" class="head">functions.py</text>
+  <text x="954" y="617" class="note">load_inputs() → calculate()</text>
+
+  <path d="M1230 581 H1345" class="arrow"/>
+  <text x="1243" y="566" class="small">сохраняет результат</text>
+
+  <rect x="1355" y="525" width="160" height="112" rx="12" class="sand"/>
+  <text x="1375" y="559" class="step">RAM</text>
+  <text x="1375" y="592" class="head">STATE</text>
+  <text x="1375" y="617" class="note">в памяти</text>
+  <text x="80" y="660" class="small">На диске хранятся входные файлы. Таблицы результатов не записываются в отдельную базу данных.</text>
+
+  <!-- Flow 3: view pages -->
+  <rect x="48" y="710" width="1504" height="245" rx="16" fill="#eaf2f4"/>
+  <text x="80" y="752" class="section">3. Пользователь открывает страницу отчёта</text>
+  <rect x="80" y="785" width="270" height="112" rx="12" class="card"/>
+  <text x="104" y="819" class="step">ЗАПРОС СТРАНИЦЫ</text>
+  <text x="104" y="852" class="head">Браузер</text>
+  <text x="104" y="877" class="note">выбор периода / страницы</text>
+
+  <path d="M350 841 H465" class="arrow"/>
+  <text x="367" y="826" class="small">HTTP-запрос</text>
+
+  <rect x="475" y="785" width="300" height="112" rx="12" class="blue"/>
+  <text x="499" y="819" class="step">ОБРАБОТЧИК</text>
+  <text x="499" y="852" class="head">Flask route</text>
+  <text x="499" y="877" class="note">берёт расчёты из STATE</text>
+
+  <path d="M775 841 H890" class="arrow"/>
+  <text x="787" y="826" class="small">данные для отображения</text>
+
+  <rect x="900" y="785" width="300" height="112" rx="12" class="green"/>
+  <text x="924" y="819" class="step">ФОРМИРОВАНИЕ ОТВЕТА</text>
+  <text x="924" y="852" class="head">charts.py + templates/</text>
+  <text x="924" y="877" class="note">Plotly · Jinja · HTML</text>
+
+  <path d="M1200 841 H1315" class="arrow"/>
+  <text x="1212" y="826" class="small">HTML-страница</text>
+
+  <rect x="1325" y="785" width="190" height="112" rx="12" class="card"/>
+  <text x="1349" y="819" class="step">РЕЗУЛЬТАТ</text>
+  <text x="1349" y="852" class="head">Браузер</text>
+  <text x="1349" y="877" class="note">таблицы и графики</text>
+
+  <text x="80" y="930" class="small">Запрос и ответ показаны в одну сторону слева направо: обработчик получает состояние и формирует страницу для браузера.</text>
+
+  <!-- Runtime boundary -->
+  <rect x="48" y="985" width="1504" height="100" rx="14" fill="#f5f1e8" stroke="#ded5c3" stroke-width="2"/>
+  <text x="80" y="1023" class="step">ГРАНИЦЫ ПРОТОТИПА</text>
+  <text x="80" y="1055" class="body">Файловая загрузка; нет потока с линии, ERP/MES-интеграции, автоматических тревог и журнала действий.</text>
+  <text x="80" y="1077" class="small">Развёртывание: локальный запуск / Waitress через Procfile / Gunicorn в Docker. Результаты живут в памяти процесса.</text>
+</svg>

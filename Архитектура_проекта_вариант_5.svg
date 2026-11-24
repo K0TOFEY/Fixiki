@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title description">
+  <title id="title">Архитектура проекта контроля качества — вариант 5</title>
+  <desc id="description">Схема слоями: пользовательский интерфейс, Flask-приложение, аналитика и хранение. Каждая связь пронумерована и пояснена под схемой.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#48636b"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #24343a; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #5b6b70; }
+      .layer { font-size: 13px; font-weight: 700; letter-spacing: 1px; fill: #48636b; }
+      .head { font-size: 21px; font-weight: 700; }
+      .body { font-size: 15px; }
+      .note { font-size: 13px; fill: #56666b; }
+      .frame { fill: #fff; stroke: #d3dcda; stroke-width: 2; }
+      .ui { fill: #edf2f7; stroke: #cbd5e1; stroke-width: 2; }
+      .app { fill: #eaf2f4; stroke: #bfd0d4; stroke-width: 2; }
+      .logic { fill: #edf4ef; stroke: #cad9ce; stroke-width: 2; }
+      .store { fill: #f5f1e8; stroke: #ded5c3; stroke-width: 2; }
+      .arrow { stroke: #48636b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .number { fill: #48636b; }
+      .number-text { font-size: 14px; font-weight: 700; fill: white; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1600" height="1050" fill="#f5f7f5"/>
+  <text x="64" y="70" class="title">Архитектура проекта контроля качества</text>
+  <text x="64" y="105" class="subtitle">Вариант 5 · схема по слоям и список связей вместо пересекающихся стрелок</text>
+
+  <!-- Layered architecture -->
+  <rect x="64" y="145" width="1020" height="730" rx="18" class="frame"/>
+  <text x="96" y="184" class="layer">СЛОИ ПРИЛОЖЕНИЯ</text>
+
+  <rect x="100" y="210" width="420" height="180" rx="14" class="ui"/>
+  <text x="128" y="249" class="layer">1 · ПОЛЬЗОВАТЕЛЬСКИЙ СЛОЙ</text>
+  <text x="128" y="285" class="head">Браузер</text>
+  <text x="128" y="318" class="body">Формы загрузки и выбора дат</text>
+  <text x="128" y="347" class="body">Таблицы и интерактивные графики</text>
+  <text x="128" y="374" class="note">templates/ · CSS · Plotly.js</text>
+
+  <rect x="620" y="210" width="420" height="180" rx="14" class="app"/>
+  <text x="648" y="249" class="layer">2 · ВЕБ-УПРАВЛЕНИЕ</text>
+  <text x="648" y="285" class="head">Flask</text>
+  <text x="648" y="318" class="body">dashboard.py · маршруты и формы</text>
+  <text x="648" y="347" class="body">Проверка загрузки и выбор периода</text>
+  <text x="648" y="374" class="note">Контекст страницы и подготовка ответа</text>
+
+  <rect x="100" y="475" width="420" height="180" rx="14" class="logic"/>
+  <text x="128" y="514" class="layer">3 · АНАЛИТИКА</text>
+  <text x="128" y="550" class="head">Расчёты данных</text>
+  <text x="128" y="583" class="body">functions.py · очистка и метрики</text>
+  <text x="128" y="612" class="body">charts.py · подготовка графиков</text>
+  <text x="128" y="639" class="note">Сигналы, границы, модель и визуализация</text>
+
+  <rect x="620" y="475" width="420" height="180" rx="14" class="store"/>
+  <text x="648" y="514" class="layer">4 · ДАННЫЕ И СОСТОЯНИЕ</text>
+  <text x="648" y="550" class="head">Локальные файлы + RAM</text>
+  <text x="648" y="583" class="body">data/: исходные загруженные файлы</text>
+  <text x="648" y="612" class="body">STATE: данные и расчёты в памяти</text>
+  <text x="648" y="639" class="note">Результаты не записываются в отдельную БД</text>
+
+  <!-- Numbered connectors, all short and non-crossing -->
+  <path d="M520 300 H610" class="arrow"/>
+  <circle cx="565" cy="278" r="15" class="number"/>
+  <text x="565" y="283" class="number-text">1</text>
+  <path d="M830 390 V465" class="arrow"/>
+  <circle cx="853" cy="428" r="15" class="number"/>
+  <text x="853" y="433" class="number-text">2</text>
+  <path d="M620 565 H530" class="arrow"/>
+  <circle cx="575" cy="543" r="15" class="number"/>
+  <text x="575" y="548" class="number-text">3</text>
+  <path d="M310 475 V400" class="arrow"/>
+  <circle cx="333" cy="437" r="15" class="number"/>
+  <text x="333" y="442" class="number-text">4</text>
+  <path d="M830 475 V400" class="arrow"/>
+  <circle cx="853" cy="437" r="15" class="number"/>
+  <text x="853" y="442" class="number-text">5</text>
+
+  <rect x="100" y="700" width="940" height="130" rx="12" fill="#f7f8f6" stroke="#e0e5e2" stroke-width="2"/>
+  <text x="128" y="738" class="layer">КАК ЧИТАТЬ НОМЕРА СВЯЗЕЙ</text>
+  <text x="128" y="773" class="body">1. Браузер отправляет HTTP-запрос Flask.</text>
+  <text x="128" y="801" class="body">2. Flask вызывает расчёты и формирование страницы.</text>
+  <text x="600" y="773" class="body">3. Аналитика читает/обновляет состояние данных.</text>
+  <text x="600" y="801" class="body">4. Flask возвращает готовую страницу браузеру.</text>
+  <text x="600" y="829" class="body">5. При старте файлы читаются и попадают в STATE.</text>
+
+  <!-- Inputs and limits -->
+  <rect x="1120" y="145" width="416" height="330" rx="18" class="frame"/>
+  <text x="1152" y="184" class="layer">ИСТОЧНИКИ</text>
+  <text x="1152" y="226" class="head">CSV</text>
+  <text x="1152" y="256" class="body">datetime · label · датчики</text>
+  <line x1="1152" y1="278" x2="1504" y2="278" stroke="#e0e5e2" stroke-width="2"/>
+  <text x="1152" y="316" class="head">Или пара файлов</text>
+  <text x="1152" y="348" class="body">features.data</text>
+  <text x="1152" y="376" class="body">labels.data</text>
+  <text x="1152" y="427" class="note">Загрузка пользователем или чтение</text>
+  <text x="1152" y="449" class="note">сохранённого набора при запуске</text>
+
+  <rect x="1120" y="505" width="416" height="370" rx="18" class="frame"/>
+  <text x="1152" y="544" class="layer">ГРАНИЦЫ ТЕКУЩЕЙ ВЕРСИИ</text>
+  <text x="1152" y="586" class="body">• Нет потока данных с линии</text>
+  <text x="1152" y="619" class="body">• Нет интеграции ERP/MES</text>
+  <text x="1152" y="652" class="body">• Нет автоматических тревог</text>
+  <text x="1152" y="685" class="body">• Нет журнала реакции оператора</text>
+  <text x="1152" y="741" class="note">Прототип анализирует загруженную</text>
+  <text x="1152" y="765" class="note">историю; модель требует проверки</text>
+  <text x="1152" y="789" class="note">на новых размеченных данных.</text>
+
+  <rect x="64" y="920" width="1472" height="74" rx="14" fill="#e9efec" stroke="#cbd5d1" stroke-width="2"/>
+  <text x="96" y="953" class="layer">ЗАПУСК</text>
+  <text x="96" y="980" class="body">Локально — run.command / run.bat · развёртывание — Waitress через Procfile или Gunicorn в Dockerfile</text>
+</svg>

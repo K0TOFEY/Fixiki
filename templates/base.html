@@ -8,22 +8,22 @@
   <script src="{{ url_for('static', filename='plotly.min.js') }}"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">К содержимому</a>
   <aside class="sidebar">
     <h2>Контроль качества</h2>
-    <nav>
+    <nav aria-label="Основная навигация">
       <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}" {% if request.endpoint == 'home' %}aria-current="page"{% endif %}>Главная</a>
       <a class="attention-status {{ attention_zone_class }}{% if request.endpoint == 'attention_page' %} active{% endif %}" href="{{ url_for('attention_page') }}" {% if request.endpoint == 'attention_page' %}aria-current="page"{% endif %}>Обрати внимание</a>
-      <a class="{% if request.endpoint == 'late_page' %}active{% endif %}" href="{{ url_for('late_page') }}" {% if request.endpoint == 'late_page' %}aria-current="page"{% endif %}>Разбор всплеска</a>
       <a class="{% if request.endpoint == 'sensors_page' %}active{% endif %}" href="{{ url_for('sensors_page') }}" {% if request.endpoint == 'sensors_page' %}aria-current="page"{% endif %}>Датчики и связи</a>
       <a class="{% if request.endpoint == 'sensor_page' %}active{% endif %}" href="{{ url_for('sensor_page') }}" {% if request.endpoint == 'sensor_page' %}aria-current="page"{% endif %}>Датчик подробно</a>
       <a class="{% if request.endpoint == 'time_page' %}active{% endif %}" href="{{ url_for('time_page') }}" {% if request.endpoint == 'time_page' %}aria-current="page"{% endif %}>Когда и где</a>
       <a class="{% if request.endpoint == 'risk_page' %}active{% endif %}" href="{{ url_for('risk_page') }}" {% if request.endpoint == 'risk_page' %}aria-current="page"{% endif %}>Оценка модели</a>
+      <a class="{% if request.endpoint == 'testing_page' %}active{% endif %}" href="{{ url_for('testing_page') }}" {% if request.endpoint == 'testing_page' %}aria-current="page"{% endif %}>Тестирование</a>
       <a class="{% if request.endpoint == 'upload_page' %}active{% endif %}" href="{{ url_for('upload_page') }}" {% if request.endpoint == 'upload_page' %}aria-current="page"{% endif %}>Загрузка данных</a>
     </nav>
-    <p class="side-note">Разбор помогает раньше заметить рост брака. Причины брака он не определяет.</p>
     {% if active_period %}<p class="side-note">Период анализа: {{ active_period[0] }} — {{ active_period[1] }}</p>{% endif %}
   </aside>
-  <main>
+  <main id="main-content" tabindex="-1">
     {% with notices = get_flashed_messages() %}
       {% for notice in notices %}<div class="notice">{{ notice }}</div>{% endfor %}
     {% endwith %}
