@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+import functions
+
 ROOT = Path(__file__).resolve().parent
 OUTPUT_FOLDER = ROOT / "synthetic_test_data"
 FEATURES_PATH = OUTPUT_FOLDER / "features.data"
@@ -41,7 +43,8 @@ def generate_dataset(output_folder=OUTPUT_FOLDER):
                 + "\n"
             )
 
-    start = datetime(2000, 1, 1, 8, 0)
+    _, original_times = functions.read_labels(ROOT / "labels.data")
+    start = original_times.max().to_pydatetime() + timedelta(hours=2)
     with labels_path.open("w", encoding="utf-8") as labels_file:
         for index, label in enumerate(labels):
             timestamp = start + timedelta(hours=2 * index)

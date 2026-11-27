@@ -1,4 +1,4 @@
-"""Append the fictional test dataset to the configured PostgreSQL database."""
+"""Append the fictional test dataset to the local SQLite database."""
 
 from dotenv import load_dotenv
 
@@ -15,11 +15,10 @@ ROOT = FEATURES_PATH.parent.parent
 
 def main():
     load_dotenv(ROOT / ".env")
-    if not FEATURES_PATH.exists() or not LABELS_PATH.exists():
-        generate_dataset()
+    generate_dataset()
 
     confirmation = input(
-        "Добавить 300 вымышленных строк в quality_products? "
+        "Добавить 300 вымышленных строк в таблицу products SQLite? "
         "Введите APPEND TEST DATA для подтверждения: "
     )
     if confirmation != "APPEND TEST DATA":

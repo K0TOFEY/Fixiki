@@ -31,9 +31,13 @@ MIN_GROUP_ROWS = 3  # Минимум изделий каждого класса 
 MIN_BORDER_ROWS = 8  # Минимум годных изделий для расчёта границы.
 MIN_CORRELATION_ROWS = 5  # Минимум пар для корреляции.
 MAD_SCALE = 1.4826  # Переводим MAD в оценку сигмы.
-MODEL_SENSORS = ["sensor_059", "sensor_103", "sensor_247", "sensor_519",
-                 "sensor_477", "sensor_205", "sensor_129", "sensor_033",
-                 "sensor_341", "sensor_021"]
+MODEL_FEATURE_COUNT = 10
+MODEL_REFERENCE_SENSORS = [
+    "sensor_059", "sensor_103", "sensor_247", "sensor_519", "sensor_477",
+    "sensor_205", "sensor_129", "sensor_033", "sensor_341", "sensor_021",
+]
+MODEL_FEATURE_VALIDATION_SHARE = 0.20
+MODEL_MIN_FEATURE_VALIDATION_ROWS = 20
 MODEL_LOGISTIC_C = 0.01  # Более сильная регуляризация для устойчивости на малой выборке.
 MODEL_COST_LOGISTIC_C = 0.1
 MODEL_COST_POSITIVE_WEIGHT = 16
@@ -43,7 +47,7 @@ MODEL_UNDERSAMPLE_MIN_PRECISION = 0.10
 MODEL_UNDERSAMPLE_RATIOS = (1, 2, 4)
 MODEL_UNDERSAMPLE_LEAVES = (2, 5, 8)
 MODEL_UNDERSAMPLE_TREES = 100
-MIN_TARGET_RECALL = 0.50  # На валидации нужно находить больше половины брака.
+MIN_TARGET_RECALL = 0.50  # На валидации нужно находить не меньше половины брака.
 MODEL_BOOTSTRAPS = 500  # Повторы для интервала ROC-AUC.
 MODEL_LOW = 0.005  # Нижний квантиль обрезки признаков.
 MODEL_HIGH = 0.995  # Верхний квантиль обрезки признаков.
@@ -128,7 +132,7 @@ def correct_p_values(p_values):
 
 
 def mann_ranking(sensors, bad, split):
-    """Ранжирует датчики тестом Манна—Уитни на первых 80% времени."""
+    """Ранжирует датчики тестом Манна—Уитни на заданном прошлом отрезке."""
     rows = []
     p_values = []
     for name in sensors.columns:
@@ -147,7 +151,7 @@ def mann_ranking(sensors, bad, split):
     return result.sort_values(["AUC", "q"], ascending=[False, True]).head(TOP_COUNT)
 
 
-def forest_ranking(sensors, bad, split):
+def forest_ranking(sensors, bad, split, *, evaluate_auc=True):
     """Обучает лес на прошлом и возвращает важность признаков и AUC проверки."""
     train = sensors.iloc[:split]
     medians = train.median().fillna(0)
@@ -156,10 +160,11 @@ def forest_ranking(sensors, bad, split):
     model.fit(train.fillna(medians), bad[:split])
     ranking = pd.DataFrame({"Датчик": sensors.columns, "Важность": model.feature_importances_})
     ranking = ranking.sort_values("Важность", ascending=False).head(TOP_COUNT)
-    test = sensors.iloc[split:].fillna(medians)
     score = None
-    if len(test) and len(np.unique(bad[split:])) == 2:
-        score = roc_auc_score(bad[split:], model.predict_proba(test)[:, 1])
+    if evaluate_auc:
+        test = sensors.iloc[split:].fillna(medians)
+        if len(test) and len(np.unique(bad[split:])) == 2:
+            score = roc_auc_score(bad[split:], model.predict_proba(test)[:, 1])
     return ranking, score
 
 
@@ -220,9 +225,70 @@ def make_weekly_data(sensors, labels, bad, borders, names):
     return weekly.reset_index(), heatmap, medians.groupby("Неделя")[names[:6]].median().reset_index()
 
 
-def model_sensors(clean):
-    """Берёт эталонные десять датчиков, доступные после очистки."""
-    return [name for name in MODEL_SENSORS if name in clean.columns]
+def _ranked_model_sensors(clean, bad, train_end):
+    if len(np.unique(bad[:train_end])) != 2 or not len(clean.columns):
+        return []
+    mann = mann_ranking(clean, bad, train_end)
+    forest, _ = forest_ranking(clean, bad, train_end, evaluate_auc=False)
+    mann_ranks = {
+        name: rank for rank, name in enumerate(mann["Датчик"], start=1)
+    }
+    forest_ranks = {
+        name: rank for rank, name in enumerate(forest["Датчик"], start=1)
+    }
+    candidates = set(mann_ranks) | set(forest_ranks)
+    missing_rank = TOP_COUNT + 1
+    combined_ranks = {
+        name: (
+            mann_ranks.get(name, missing_rank)
+            + forest_ranks.get(name, missing_rank)
+        ) / 2
+        for name in candidates
+    }
+    return sorted(candidates, key=lambda name: (combined_ranks[name], name))[
+        :MODEL_FEATURE_COUNT
+    ]
+
+
+def _feature_validation_metrics(clean, bad, names, train_end, validation_start):
+    fitted = fit_logistic(clean, bad, names, validation_start)
+    scores, _ = score_logistic(
+        clean.iloc[validation_start:train_end], names, fitted
+    )
+    targets = bad[validation_start:train_end]
+    return roc_auc_score(targets, scores), average_precision_score(targets, scores)
+
+
+def model_sensors(clean, bad, train_end):
+    """Select ranked features, falling back when they lose on an internal time split."""
+    validation_start = int(train_end * (1 - MODEL_FEATURE_VALIDATION_SHARE))
+    validation_bad = bad[validation_start:train_end]
+    if (
+        train_end - validation_start < MODEL_MIN_FEATURE_VALIDATION_ROWS
+        or len(np.unique(bad[:validation_start])) != 2
+        or len(np.unique(validation_bad)) != 2
+        or not set(MODEL_REFERENCE_SENSORS).issubset(clean.columns)
+    ):
+        return _ranked_model_sensors(clean, bad, train_end)
+
+    ranked_for_validation = _ranked_model_sensors(
+        clean, bad, validation_start
+    )
+    if len(ranked_for_validation) < MODEL_FEATURE_COUNT:
+        return _ranked_model_sensors(clean, bad, train_end)
+
+    ranked_metrics = _feature_validation_metrics(
+        clean, bad, ranked_for_validation, train_end, validation_start
+    )
+    reference_metrics = _feature_validation_metrics(
+        clean, bad, MODEL_REFERENCE_SENSORS, train_end, validation_start
+    )
+    if all(
+        reference >= ranked
+        for reference, ranked in zip(reference_metrics, ranked_metrics)
+    ):
+        return MODEL_REFERENCE_SENSORS.copy()
+    return _ranked_model_sensors(clean, bad, train_end)
 
 
 def fit_logistic(sensors, bad, names, end, *, c=MODEL_LOGISTIC_C,
@@ -291,32 +357,58 @@ def rolling_auc(sensors, bad, names, split):
     return auc, interval, len(targets)
 
 
-def recall_focused_threshold(targets, scores):
-    """Минимизирует число тревог при полноте брака строго выше 50%."""
+def precision_at_minimum_recall_threshold(targets, scores):
+    """Maximize validation precision while keeping defect recall at least 50%."""
     targets = np.asarray(targets)
     scores = np.asarray(scores)
-    defect_count = int(np.sum(targets))
-    if defect_count == 0:
-        raise ValueError("В валидационных данных нет брака для выбора порога.")
+    if (
+        targets.ndim != 1
+        or scores.ndim != 1
+        or len(targets) != len(scores)
+        or not len(targets)
+        or not set(np.unique(targets)).issubset({0, 1})
+        or len(np.unique(targets)) != 2
+    ):
+        raise ValueError("Для выбора порога нужны годные изделия и брак.")
+
     eligible = []
     for candidate in np.unique(scores):
         predictions = scores >= candidate
-        detected = int(np.sum(targets[predictions] == 1))
-        if detected / defect_count > MIN_TARGET_RECALL:
-            eligible.append(float(candidate))
+        true_good, false_alarm, missed_defect, found_defect = confusion_matrix(
+            targets, predictions, labels=[0, 1]
+        ).ravel()
+        recall = found_defect / (found_defect + missed_defect)
+        precision = found_defect / (found_defect + false_alarm)
+        if recall >= MIN_TARGET_RECALL:
+            eligible.append(
+                (
+                    precision,
+                    recall,
+                    float(candidate),
+                    true_good,
+                    false_alarm,
+                    missed_defect,
+                    found_defect,
+                )
+            )
     if not eligible:
-        raise ValueError("Не удалось подобрать порог с полнотой брака выше 50%.")
-    threshold = max(eligible)
-    predictions = (scores >= threshold).astype(int)
-    true_good, false_alarm, missed_defect, found_defect = confusion_matrix(
-        targets, predictions, labels=[0, 1]
-    ).ravel()
+        raise ValueError("Не удалось подобрать порог с полнотой брака не ниже 50%.")
+    (
+        precision,
+        recall,
+        threshold,
+        true_good,
+        false_alarm,
+        missed_defect,
+        found_defect,
+    ) = max(eligible, key=lambda row: (row[0], row[1], row[2]))
+    defect_count = int(np.sum(targets))
     return threshold, {
         "threshold": threshold,
         "count": len(targets),
         "defects": defect_count,
-        "precision": precision_score(targets, predictions, zero_division=0),
-        "recall": recall_score(targets, predictions, zero_division=0),
+        "precision": precision,
+        "recall": recall,
         "alerts": int(found_defect + false_alarm),
         "false_alarms": int(false_alarm),
         "false_alarm_rate": float(false_alarm / (false_alarm + true_good)),
@@ -407,11 +499,11 @@ def fit_undersampled_forest(values, bad, end, ratio, min_leaf, seed):
     return model
 
 
-def make_model(clean, bad, split):
+def make_model(clean, bad, split, names=None):
     """Обучает модель, выбирает порог на валидации и проверяет на последних 20%."""
-    names = model_sensors(clean)
     fit_end = int(len(bad) * MODEL_FIT_SHARE)
-    if len(names) < len(MODEL_SENSORS) or len(np.unique(bad[:fit_end])) != 2:
+    names = names if names is not None else model_sensors(clean, bad, fit_end)
+    if len(names) < MODEL_FEATURE_COUNT or len(np.unique(bad[:fit_end])) != 2:
         return {"available": False, "reason": "Недостаточно ключевых датчиков или меток."}
     if len(np.unique(bad[fit_end:split])) != 2:
         return {"available": False, "reason": "В промежуточных 20% нет обоих классов для выбора порога."}
@@ -419,7 +511,7 @@ def make_model(clean, bad, split):
     scores, contributions = score_logistic(clean, names, fitted)
     if len(np.unique(bad[split:])) != 2:
         return {"available": False, "reason": "В последних 20% нет обоих классов для проверки."}
-    threshold, threshold_selection = recall_focused_threshold(
+    threshold, threshold_selection = precision_at_minimum_recall_threshold(
         bad[fit_end:split], scores[fit_end:split]
     )
     test_bad = bad[split:]
@@ -459,11 +551,11 @@ def make_model(clean, bad, split):
             "rolling_auc": rolling, "rolling_interval": rolling_interval, "rolling_count": rolling_count}
 
 
-def make_model_comparison(clean, bad, split):
+def make_model_comparison(clean, bad, split, names=None):
     """Сравнивает градиентный бустинг и XGBoost на одинаковых временных отрезках."""
-    names = model_sensors(clean)
     fit_end = int(len(bad) * MODEL_FIT_SHARE)
-    if len(names) < len(MODEL_SENSORS) or len(np.unique(bad[:fit_end])) != 2:
+    names = names if names is not None else model_sensors(clean, bad, fit_end)
+    if len(names) < MODEL_FEATURE_COUNT or len(np.unique(bad[:fit_end])) != 2:
         return {"available": False, "reason": "Недостаточно ключевых датчиков или меток."}
     if len(np.unique(bad[fit_end:split])) != 2:
         return {"available": False, "reason": "В промежуточных 20% нет обоих классов для выбора порога."}
@@ -509,7 +601,7 @@ def make_model_comparison(clean, bad, split):
             continue
         model.fit(values.iloc[:fit_end], bad[:fit_end], sample_weight=sample_weight)
         validation_scores = model.predict_proba(values.iloc[fit_end:split])[:, 1]
-        threshold, threshold_selection = recall_focused_threshold(
+        threshold, threshold_selection = precision_at_minimum_recall_threshold(
             bad[fit_end:split], validation_scores
         )
         test_scores = model.predict_proba(values.iloc[split:])[:, 1]
@@ -846,11 +938,14 @@ def calculate(sensors, labels):
     daily = pd.DataFrame({"Дата": dates, "Брак": bad[:split]}).set_index("Дата").resample("D")["Брак"].mean()
     ordinary = float(daily.median())
     weekly, heatmap, medians = make_weekly_data(clean, labels, bad, borders, keys)
+    model_fit_end = int(len(bad) * MODEL_FIT_SHARE)
+    model_features = model_sensors(clean, bad, model_fit_end)
     result = {"sensors": sensors, "clean": clean, "labels": labels, "bad": bad,
               "missing": missing, "remove_missing": remove_missing, "remove_unique": remove_unique,
               "removed": removed, "mann": mann, "forest": forest, "keys": keys, "borders": borders,
               "weekly": weekly, "heatmap": heatmap, "medians": medians, "ordinary": ordinary,
               "correlations": make_correlations(clean, keys, bad), "split": split,
-              "forest_auc": forest_auc, "model": make_model(clean, bad, split)}
+              "forest_auc": forest_auc, "model_features": model_features,
+              "model": make_model(clean, bad, split, model_features)}
     result["late"] = late_detection(result)
     return result

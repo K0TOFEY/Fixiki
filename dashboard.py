@@ -1,6 +1,7 @@
 """Flask-сервис для просмотра контроля качества изделий."""
 
 import os
+import sqlite3
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,7 @@ SILENT_LIMIT = 0.80  # Свыше 80% пустых строк — датчик �
 MIN_PERIOD_ITEMS = 30  # Минимум изделий для пересчёта выбранного периода.
 STATE = {"data": None, "message": "Загрузите данные на странице загрузки.", "views": {}}
 DB_LOADED_SNAPSHOT = None
+DATABASE_ENABLED = False
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(32)
@@ -39,8 +41,8 @@ def load_state(features_path=None, labels_path=None, csv_path=None):
 
 def load_initial_data():
     """При запуске читает данные из data/, а для прежней папки проекта — из корня."""
-    global DB_LOADED_SNAPSHOT
-    if os.getenv("DATABASE_URL"):
+    global DATABASE_ENABLED, DB_LOADED_SNAPSHOT
+    if database.database_available():
         snapshot = database.get_dataset_status()
         sensors, labels = database.load_dataset()
         result = functions.calculate(sensors, labels)
@@ -48,6 +50,7 @@ def load_initial_data():
         STATE["views"] = {}
         STATE["message"] = ""
         DB_LOADED_SNAPSHOT = snapshot
+        DATABASE_ENABLED = True
         return
 
     DATA_FOLDER.mkdir(exist_ok=True)
@@ -165,12 +168,12 @@ def add_period_to_page():
         return {
             "active_period": None,
             "attention_zone_class": "zone-green",
-            "database_enabled": bool(os.getenv("DATABASE_URL")),
+            "database_enabled": DATABASE_ENABLED,
         }
     return {
         "active_period": selected_dates(STATE["data"]),
         "attention_zone_class": latest_attention_class(data),
-        "database_enabled": bool(os.getenv("DATABASE_URL")),
+        "database_enabled": DATABASE_ENABLED,
     }
 
 
@@ -660,7 +663,7 @@ def testing_page():
     comparison = data.get("model_comparison")
     if comparison is None:
         comparison = functions.make_model_comparison(
-            data["clean"], data["bad"], data["split"]
+            data["clean"], data["bad"], data["split"], data["model_features"]
         )
         data["model_comparison"] = comparison
     return render_template("testing.html", data=data, comparison=comparison,
@@ -670,7 +673,7 @@ def testing_page():
 @app.route("/upload", methods=["GET", "POST"])
 def upload_page():
     """Показывает форму загрузки и сохраняет прошедшие проверку данные."""
-    global DB_LOADED_SNAPSHOT
+    global DB_LOADED_SNAPSHOT, DATABASE_ENABLED
     message = request.args.get("message", "")
     data = current_data()
     manual = ""
@@ -681,14 +684,15 @@ def upload_page():
                 snapshot = database.get_dataset_status()
                 sensors, labels = database.load_dataset()
                 result = functions.calculate(sensors, labels)
-            except (psycopg2.Error, RuntimeError, ValueError):
-                app.logger.exception("Не удалось обновить данные из PostgreSQL.")
+            except (sqlite3.Error, RuntimeError, ValueError):
+                app.logger.exception("Не удалось обновить данные из SQLite.")
                 flash("Не удалось загрузить данные из БД. Проверьте подключение и повторите попытку.")
             else:
                 STATE["data"] = result
                 STATE["views"] = {}
                 STATE["message"] = ""
                 DB_LOADED_SNAPSHOT = snapshot
+                DATABASE_ENABLED = True
                 session.pop("period_start", None)
                 session.pop("period_end", None)
                 flash(f"Данные из БД загружены: {len(labels)} строк.")
@@ -719,13 +723,13 @@ def upload_page():
 
 @app.route("/database/status")
 def database_status():
-    """Checks whether PostgreSQL has rows newer than the loaded dataset."""
-    if not os.getenv("DATABASE_URL"):
+    """Checks whether the SQLite database has rows newer than the loaded dataset."""
+    if not DATABASE_ENABLED:
         return jsonify(enabled=False)
     try:
         current_snapshot = database.get_dataset_status()
-    except (psycopg2.Error, RuntimeError):
-        app.logger.exception("Не удалось проверить обновления PostgreSQL.")
+    except (sqlite3.Error, RuntimeError):
+        app.logger.exception("Не удалось проверить обновления SQLite.")
         return jsonify(enabled=True, error="Не удалось проверить обновления базы данных."), 503
 
     loaded_snapshot = DB_LOADED_SNAPSHOT
@@ -775,11 +779,10 @@ app.register_error_handler(413, upload_too_large)
 
 try:
     load_initial_data()
-except psycopg2.Error:
-    app.logger.exception("Не удалось загрузить данные при запуске.")
-    STATE["message"] = "Не удалось загрузить данные из БД. Проверьте подключение и доступность базы."
-except (ValueError, OSError, IndexError, RuntimeError) as error:
-    STATE["message"] = "Не удалось загрузить данные из папки data/: " + str(error)
+except (sqlite3.Error, ValueError, OSError, IndexError, RuntimeError) as error:
+    if isinstance(error, sqlite3.Error):
+        app.logger.exception("Не удалось загрузить данные при запуске.")
+    STATE["message"] = "Не удалось загрузить данные: " + str(error)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5001"))

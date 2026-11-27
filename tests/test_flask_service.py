@@ -1,8 +1,4 @@
 from io import BytesIO
-import os
-
-# Dashboard tests must not connect to a developer's real database from .env.
-os.environ["DATABASE_URL"] = ""
 
 import dashboard
 
@@ -14,7 +10,7 @@ def test_health_returns_ok():
 
 
 def test_database_update_button_is_available_when_database_is_configured(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(dashboard, "DATABASE_ENABLED", True)
     page = dashboard.app.test_client().get("/upload").get_data(as_text=True)
     assert "Подгрузить новые данные из БД" in page
     assert 'id="database-update-notice"' in page
@@ -22,7 +18,7 @@ def test_database_update_button_is_available_when_database_is_configured(monkeyp
 
 
 def test_database_status_notifies_when_rows_were_added(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(dashboard, "DATABASE_ENABLED", True)
     monkeypatch.setattr(dashboard, "DB_LOADED_SNAPSHOT", {
         "row_count": 10,
         "max_source_row": 10,
@@ -46,7 +42,7 @@ def test_reloading_database_replaces_dashboard_state(monkeypatch):
     result = {"bad": [0]}
     for key, value in dashboard.STATE.items():
         monkeypatch.setitem(dashboard.STATE, key, value)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(dashboard, "DATABASE_ENABLED", True)
     monkeypatch.setattr(
         dashboard.database,
         "load_dataset",
@@ -415,15 +411,20 @@ def test_burst_review_ranks_model_sensor_contributions():
     assert dashboard.STATE["data"]["model"]["sensors"][0] in table
 
 
-def test_risk_page_reports_recall_focused_threshold_and_held_out_metrics():
+def test_risk_page_reports_automatic_precision_threshold_and_held_out_metrics():
     response = dashboard.app.test_client().get("/risk")
     page = response.get_data(as_text=True)
     risk = dashboard.STATE["data"]["model"]
     metrics = risk["metrics"]
+    selected_sensors = dashboard.STATE["data"]["model_features"]
 
     assert response.status_code == 200
-    assert "порог с приоритетом поиска брака" in page
-    assert "минимальное число тревог при обнаружении строго больше половины брака" in page
+    assert "полнота брака не ниже 50%, максимум точности" in page
+    assert len(selected_sensors) == 10
+    assert risk["sensors"] == selected_sensors
+    assert "Признаки модели (10)" in page
+    assert all(sensor in page for sensor in selected_sensors)
+    assert "максимальная точность при полноте брака не ниже 50%" in page
     assert "валидация" not in page.lower()
     assert "Наивный ориентир для сравнения" not in page
     assert "Сравнение на последних 20%" in page
@@ -431,7 +432,7 @@ def test_risk_page_reports_recall_focused_threshold_and_held_out_metrics():
     assert "Сбалансированная точность" in page
     assert metrics["true_good"] + metrics["false_alarm"] + metrics["missed_defect"] + metrics["found_defect"] == metrics["count"]
     assert metrics["found_defect"] >= risk["default_metrics"]["found_defect"]
-    assert risk["threshold_selection"]["recall"] > 0.5
+    assert risk["threshold_selection"]["recall"] >= 0.5
     assert risk["threshold_selection"]["count"] == dashboard.STATE["data"]["split"] - risk["fit_end"]
     assert "Искусственных примерах" not in page
 
@@ -446,6 +447,7 @@ def test_testing_page_compares_boosting_models_on_the_same_held_out_metrics():
     assert "XGBoost" in page
     assert "Текущая модель — логистическая регрессия" in page
     assert "последних 20%" in page
+    assert "максимальная точность при полноте брака не ниже 50%" in page
     assert comparison["available"]
     assert len(comparison["models"]) == 5
     for model in comparison["models"]:
@@ -474,17 +476,35 @@ def test_testing_page_compares_boosting_models_on_the_same_held_out_metrics():
     assert precision_policy["metrics"]["f1"] > dashboard.STATE["data"]["model"]["metrics"]["f1"]
 
 
-def test_recall_threshold_minimizes_alerts_while_exceeding_half_recall():
+def test_model_threshold_maximizes_precision_subject_to_minimum_recall():
     import numpy as np
 
-    labels = np.array([1, 1, 1, 1, 0, 0, 0, 0, 0, 0])
-    scores = np.array([0.9, 0.8, 0.7, 0.1, 0.65, 0.6, 0.5, 0.4, 0.3, 0.2])
+    labels = np.array([1, 1, 1, 1, 0, 0])
+    scores = np.array([0.95, 0.8, 0.7, 0.1, 0.9, 0.6])
 
-    threshold, result = dashboard.functions.recall_focused_threshold(labels, scores)
+    threshold, result = dashboard.functions.precision_at_minimum_recall_threshold(
+        labels, scores
+    )
 
     assert threshold == 0.7
     assert result["recall"] == 0.75
+    assert result["precision"] == 0.75
     assert result["found_defect"] == 3
+
+
+def test_model_threshold_accepts_exactly_fifty_percent_recall():
+    import numpy as np
+
+    labels = np.array([1, 1, 0, 0])
+    scores = np.array([0.9, 0.1, 0.8, 0.7])
+
+    threshold, result = dashboard.functions.precision_at_minimum_recall_threshold(
+        labels, scores
+    )
+
+    assert threshold == 0.9
+    assert result["recall"] == 0.5
+    assert result["precision"] == 1
 
 
 def test_precision_threshold_maximizes_recall_without_violating_the_floor():

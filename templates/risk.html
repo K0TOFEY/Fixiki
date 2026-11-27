@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Оценка модели: порог с приоритетом поиска брака</h1>
+<h1>Оценка модели: полнота брака не ниже 50%, максимум точности</h1>
 {% if risk is defined and not risk.available %}
 <section class="status warning">{{ risk.reason }}</section>
 {% elif risk is defined %}
@@ -16,7 +16,8 @@
     <article class="card"><span>F1</span><strong>{{ "%.2f"|format(risk.metrics.f1) }}</strong></article>
   </div>
   <p>В проверочной части: {{ risk.metrics.defects }} изделий с браком из {{ risk.metrics.count }}.</p>
-  <p>Порог {{ "%.2f"|format(risk.threshold_selection.threshold) }} выбран на предыдущих 20% данных: минимальное число тревог при обнаружении строго больше половины брака. На этой части найдено {{ risk.threshold_selection.found_defect }} из {{ risk.threshold_selection.defects }}, пропущено {{ risk.threshold_selection.missed_defect }}, ложных тревог — {{ risk.threshold_selection.false_alarms }} из {{ risk.threshold_selection.count - risk.threshold_selection.defects }} годных. Обучение — первые 60%; тестовый отрезок при выборе порога не использовался.</p>
+  <p>Порог {{ "%.2f"|format(risk.threshold_selection.threshold) }} автоматически выбран на предыдущих 20% данных: среди порогов с полнотой брака не ниже 50% выбран дающий максимальную точность найденного брака. При равной точности предпочтение отдаётся большей полноте. На этой части найдено {{ risk.threshold_selection.found_defect }} из {{ risk.threshold_selection.defects }}, пропущено {{ risk.threshold_selection.missed_defect }}, ложных тревог — {{ risk.threshold_selection.false_alarms }} из {{ risk.threshold_selection.count - risk.threshold_selection.defects }} годных. Обучение — первые 60%; тестовый отрезок при выборе порога не использовался.</p>
+  <p>Признаки модели ({{ risk.sensors|length }}): {{ risk.sensors|join(", ") }}.</p>
   <p>Сравнение на последних 20%: настроенный порог нашёл {{ risk.metrics.found_defect }} из {{ risk.metrics.defects }}, пропустил {{ risk.metrics.missed_defect }}, дал {{ risk.metrics.false_alarm }} ложных тревог ({{ "%.2f"|format(risk.metrics.false_alarm_rate * 100) }}% годных изделий). Стандартный порог 0 нашёл {{ risk.default_metrics.found_defect }}, пропустил {{ risk.default_metrics.missed_defect }}, дал {{ risk.default_metrics.false_alarm }} ложных тревог.</p>
   <p class="status warning">Больше найденного брака достигается ценой дополнительных ложных тревог. Модель сама не уменьшает брак — она помогает раньше выделить изделия для проверки. Результат на небольшом историческом наборе не гарантирует такое же качество в будущем.</p>
   <div class="chart">{{ roc|safe }}</div>
@@ -31,7 +32,7 @@
 </section>
 {% if silent %}<section class="status error">⛔ Датчики модели почти не передают данные: {{ silent|join(", ") }}. Оценка требует проверки.</section>{% else %}<section class="status success">✓ Все датчики модели передают данные в последних изделиях.</section>{% endif %}
 <details class="card"><summary>Как это посчитано</summary>
-  <p>Логистическая регрессия с более сильной регуляризацией обучается на первых 60%. На следующих 20% выбирается порог с минимальным числом тревог, при котором найдено строго больше половины брака. Последние 20% используются для проверки, не для подбора. Все границы обрезки и медианы рассчитываются по обучающей части. ROC-AUC показывается вместе с количеством проверочных изделий. Категории сопоставляются с оценками последних 300 изделий.</p>
+  <p>Десять признаков логистической регрессии автоматически ранжируются по Манну—Уитни и Random Forest на первых 60%. Берутся признаки из верхних 15 позиций каждого рейтинга; если датчика нет в одном рейтинге, ему присваивается ранг 16. Если ранжированный набор уступает прежнему набору одновременно по ROC-AUC и PR-AUC на внутреннем временном фрагменте обучения, используется прежний набор как защита от регрессии. На следующих 20% порог выбирается автоматически: максимальная точность при полноте брака не ниже 50%. Последние 20% используются для проверки, не для подбора признаков или порога. Все границы обрезки и медианы рассчитываются по обучающей части. ROC-AUC показывается вместе с количеством проверочных изделий. Категории сопоставляются с оценками последних 300 изделий.</p>
 </details>
 {% else %}<section class="status warning">Данные не загружены.</section>{% endif %}
 {% endblock %}

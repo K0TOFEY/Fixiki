@@ -15,7 +15,7 @@
 {% if database_enabled %}
 <section class="card">
   <h2>Обновить данные из базы</h2>
-  <p>Загрузить актуальные строки из PostgreSQL и пересчитать показатели дашборда.</p>
+  <p>Загрузить актуальные строки из локальной SQLite-базы и пересчитать показатели дашборда.</p>
   <form method="post">
     <input type="hidden" name="mode" value="reload_database">
     <button type="submit">Подгрузить новые данные из БД</button>

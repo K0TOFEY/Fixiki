@@ -10,6 +10,7 @@
   <section class="card">
     <h2>Текущая модель — логистическая регрессия</h2>
     <p>ROC-AUC <strong>{{ "%.2f"|format(data.model.auc) }}</strong></p>
+    <p>Автоматически выбранные признаки: {{ data.model.sensors|join(", ") }}.</p>
     <div class="cards">
       <article class="card"><span>Accuracy</span><strong>{{ "%.2f"|format(data.model.metrics.accuracy) }}</strong></article>
       <article class="card"><span>Сбалансированная точность</span><strong>{{ "%.2f"|format(data.model.metrics.balanced_accuracy) }}</strong></article>
@@ -45,7 +46,7 @@
     <p class="status warning">На последних 20% точность ниже целевого уровня: {{ "%.1f"|format(model.metrics.precision * 100) }}% против {{ "%.0f"|format(model.minimum_precision * 100) }}%.</p>
     {% endif %}
     {% else %}
-    <p>Порог {{ "%.3f"|format(model.threshold) }} выбран на следующих 20% при полноте брака выше 50%: ложных тревог {{ model.threshold_selection.false_alarms }}.</p>
+    <p>Порог {{ "%.3f"|format(model.threshold) }} автоматически выбран на следующих 20%: максимальная точность при полноте брака не ниже 50%; ложных тревог {{ model.threshold_selection.false_alarms }}.</p>
     {% endif %}
     <p>Стандартный порог {{ "%.2f"|format(model.default_threshold) }}: найдено {{ model.default_metrics.found_defect }}, пропущено {{ model.default_metrics.missed_defect }}, ложных тревог {{ model.default_metrics.false_alarm }}.</p>
     {% endif %}

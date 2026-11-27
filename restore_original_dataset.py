@@ -1,4 +1,4 @@
-"""Restore the original local dataset to the configured PostgreSQL database."""
+"""Restore the original local dataset to the SQLite database."""
 
 from pathlib import Path
 
@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent
 def main():
     load_dotenv(ROOT / ".env")
     confirmation = input(
-        "Заменить ВСЮ таблицу quality_products исходными features.data и labels.data? "
+        "Заменить ВСЮ таблицу products SQLite исходными features.data и labels.data? "
         "Будут удалены тестовые и любые другие новые строки. "
         "Введите RESTORE ORIGINAL для подтверждения: "
     )
