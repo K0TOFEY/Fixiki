@@ -5,12 +5,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from dotenv import load_dotenv
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 
 import charts
+import database
 import functions
 
 ROOT = Path(__file__).parent
+load_dotenv(ROOT / ".env")
 DATA_FOLDER = ROOT / "data"
 MAX_UPLOAD_MB = 100  # Максимальный общий размер загружаемых файлов.
 MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
@@ -19,6 +22,7 @@ HEALTH_WINDOW = 50  # Размер окна для контроля пропус
 SILENT_LIMIT = 0.80  # Свыше 80% пустых строк — датчик почти не передаёт данные.
 MIN_PERIOD_ITEMS = 30  # Минимум изделий для пересчёта выбранного периода.
 STATE = {"data": None, "message": "Загрузите данные на странице загрузки.", "views": {}}
+DB_LOADED_SNAPSHOT = None
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(32)
@@ -35,6 +39,17 @@ def load_state(features_path=None, labels_path=None, csv_path=None):
 
 def load_initial_data():
     """При запуске читает данные из data/, а для прежней папки проекта — из корня."""
+    global DB_LOADED_SNAPSHOT
+    if os.getenv("DATABASE_URL"):
+        snapshot = database.get_dataset_status()
+        sensors, labels = database.load_dataset()
+        result = functions.calculate(sensors, labels)
+        STATE["data"] = result
+        STATE["views"] = {}
+        STATE["message"] = ""
+        DB_LOADED_SNAPSHOT = snapshot
+        return
+
     DATA_FOLDER.mkdir(exist_ok=True)
     csv_path = DATA_FOLDER / "input.csv"
     features_path = DATA_FOLDER / "features.data"
@@ -147,10 +162,15 @@ def add_period_to_page():
     """Передаёт выбранный период в общий шаблон страниц."""
     data = current_data()
     if not data:
-        return {"active_period": None, "attention_zone_class": "zone-green"}
+        return {
+            "active_period": None,
+            "attention_zone_class": "zone-green",
+            "database_enabled": bool(os.getenv("DATABASE_URL")),
+        }
     return {
         "active_period": selected_dates(STATE["data"]),
         "attention_zone_class": latest_attention_class(data),
+        "database_enabled": bool(os.getenv("DATABASE_URL")),
     }
 
 
@@ -650,11 +670,30 @@ def testing_page():
 @app.route("/upload", methods=["GET", "POST"])
 def upload_page():
     """Показывает форму загрузки и сохраняет прошедшие проверку данные."""
+    global DB_LOADED_SNAPSHOT
     message = request.args.get("message", "")
     data = current_data()
     manual = ""
     manual_submitted = False
     if request.method == "POST":
+        if request.form.get("mode") == "reload_database":
+            try:
+                snapshot = database.get_dataset_status()
+                sensors, labels = database.load_dataset()
+                result = functions.calculate(sensors, labels)
+            except (psycopg2.Error, RuntimeError, ValueError):
+                app.logger.exception("Не удалось обновить данные из PostgreSQL.")
+                flash("Не удалось загрузить данные из БД. Проверьте подключение и повторите попытку.")
+            else:
+                STATE["data"] = result
+                STATE["views"] = {}
+                STATE["message"] = ""
+                DB_LOADED_SNAPSHOT = snapshot
+                session.pop("period_start", None)
+                session.pop("period_end", None)
+                flash(f"Данные из БД загружены: {len(labels)} строк.")
+            return redirect(url_for("upload_page"))
+
         if request.form.get("mode") == "manual":
             manual_submitted = True
             if data:
@@ -676,6 +715,40 @@ def upload_page():
     return render_template("upload.html", message=message, data=data, manual=manual,
                            manual_submitted=manual_submitted,
                            password_required=bool(os.getenv("UPLOAD_PASSWORD")))
+
+
+@app.route("/database/status")
+def database_status():
+    """Checks whether PostgreSQL has rows newer than the loaded dataset."""
+    if not os.getenv("DATABASE_URL"):
+        return jsonify(enabled=False)
+    try:
+        current_snapshot = database.get_dataset_status()
+    except (psycopg2.Error, RuntimeError):
+        app.logger.exception("Не удалось проверить обновления PostgreSQL.")
+        return jsonify(enabled=True, error="Не удалось проверить обновления базы данных."), 503
+
+    loaded_snapshot = DB_LOADED_SNAPSHOT
+    current_max_row = current_snapshot["max_source_row"]
+    loaded_max_row = loaded_snapshot["max_source_row"] if loaded_snapshot else None
+    has_new_data = bool(
+        loaded_snapshot
+        and (
+            current_snapshot["row_count"] > loaded_snapshot["row_count"]
+            or (
+                current_max_row is not None
+                and (loaded_max_row is None or current_max_row > loaded_max_row)
+            )
+            or (
+                current_snapshot["max_datetime"]
+                and (
+                    not loaded_snapshot["max_datetime"]
+                    or current_snapshot["max_datetime"] > loaded_snapshot["max_datetime"]
+                )
+            )
+        )
+    )
+    return jsonify(enabled=True, has_new_data=has_new_data)
 
 
 @app.route("/health")
@@ -702,7 +775,10 @@ app.register_error_handler(413, upload_too_large)
 
 try:
     load_initial_data()
-except (ValueError, OSError, IndexError) as error:
+except psycopg2.Error:
+    app.logger.exception("Не удалось загрузить данные при запуске.")
+    STATE["message"] = "Не удалось загрузить данные из БД. Проверьте подключение и доступность базы."
+except (ValueError, OSError, IndexError, RuntimeError) as error:
     STATE["message"] = "Не удалось загрузить данные из папки data/: " + str(error)
 
 if __name__ == "__main__":

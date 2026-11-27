@@ -24,6 +24,9 @@
     {% if active_period %}<p class="side-note">Период анализа: {{ active_period[0] }} — {{ active_period[1] }}</p>{% endif %}
   </aside>
   <main id="main-content" tabindex="-1">
+    {% if database_enabled %}
+      <div id="database-update-notice" class="notice warning" role="status" aria-live="polite" hidden></div>
+    {% endif %}
     {% with notices = get_flashed_messages() %}
       {% for notice in notices %}<div class="notice">{{ notice }}</div>{% endfor %}
     {% endwith %}
@@ -32,5 +35,46 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+  {% if database_enabled %}
+  <script>
+    (() => {
+      const notice = document.getElementById("database-update-notice");
+      const uploadUrl = {{ url_for("upload_page")|tojson }};
+
+      function showNotice(message, linkText) {
+        notice.replaceChildren(document.createTextNode(message));
+        if (linkText) {
+          notice.append(" ");
+          const link = document.createElement("a");
+          link.href = uploadUrl;
+          link.textContent = linkText;
+          notice.append(link);
+        }
+        notice.hidden = false;
+      }
+
+      async function checkDatabase() {
+        try {
+          const response = await fetch({{ url_for("database_status")|tojson }}, {
+            cache: "no-store",
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            showNotice(result.error || "Не удалось проверить обновления базы данных.");
+          } else if (result.has_new_data) {
+            showNotice("В базе данных появились новые данные.", "Перейти к загрузке данных");
+          } else {
+            notice.hidden = true;
+          }
+        } catch {
+          showNotice("Не удалось проверить обновления базы данных.");
+        }
+      }
+
+      checkDatabase();
+      window.setInterval(checkDatabase, 10000);
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>

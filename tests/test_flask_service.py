@@ -1,4 +1,8 @@
 from io import BytesIO
+import os
+
+# Dashboard tests must not connect to a developer's real database from .env.
+os.environ["DATABASE_URL"] = ""
 
 import dashboard
 
@@ -7,6 +11,64 @@ def test_health_returns_ok():
     response = dashboard.app.test_client().get("/health")
     assert response.status_code == 200
     assert response.get_data(as_text=True) == "ok"
+
+
+def test_database_update_button_is_available_when_database_is_configured(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    page = dashboard.app.test_client().get("/upload").get_data(as_text=True)
+    assert "Подгрузить новые данные из БД" in page
+    assert 'id="database-update-notice"' in page
+    assert "window.setInterval(checkDatabase, 10000)" in page
+
+
+def test_database_status_notifies_when_rows_were_added(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(dashboard, "DB_LOADED_SNAPSHOT", {
+        "row_count": 10,
+        "max_source_row": 10,
+        "max_datetime": "2020-01-01T00:00:00",
+    })
+    monkeypatch.setattr(dashboard.database, "get_dataset_status", lambda: {
+        "row_count": 11,
+        "max_source_row": 11,
+        "max_datetime": "2020-01-02T00:00:00",
+    })
+
+    response = dashboard.app.test_client().get("/database/status")
+
+    assert response.status_code == 200
+    assert response.json == {"enabled": True, "has_new_data": True}
+
+
+def test_reloading_database_replaces_dashboard_state(monkeypatch):
+    import pandas as pd
+
+    result = {"bad": [0]}
+    for key, value in dashboard.STATE.items():
+        monkeypatch.setitem(dashboard.STATE, key, value)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(
+        dashboard.database,
+        "load_dataset",
+        lambda: (pd.DataFrame({"sensor_000": [1.0]}), pd.DataFrame({
+            "label": [-1],
+            "datetime": [pd.Timestamp("2020-01-01")],
+        })),
+    )
+    monkeypatch.setattr(dashboard.functions, "calculate", lambda sensors, labels: result)
+    monkeypatch.setattr(dashboard.database, "get_dataset_status", lambda: {
+        "row_count": 1,
+        "max_source_row": 1,
+        "max_datetime": "2020-01-01T00:00:00",
+    })
+
+    response = dashboard.app.test_client().post(
+        "/upload", data={"mode": "reload_database"}
+    )
+
+    assert response.status_code == 302
+    assert dashboard.STATE["data"] is result
+    assert response.location.endswith("/upload")
 
 
 def test_dashboard_pages_return_success():
